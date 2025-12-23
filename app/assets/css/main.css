@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* M3 Expressive: Light mode surfaces */
+    --surface: 255 255 255;
+    --surface-dim: 248 250 252;
+    --surface-elevated: 255 255 255;
+    --surface-overlay: 241 245 249;
+
+    /* Primary color for glow effects - Fox orange */
+    --color-primary: 249 115 22;
+  }
+
+  .dark {
+    /* M3 Expressive: Dark mode surfaces with depth */
+    --surface: 15 23 42;
+    --surface-dim: 2 6 23;
+    --surface-elevated: 30 41 59;
+    --surface-overlay: 51 65 85;
+
+    --color-primary: 251 146 60;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-surface text-slate-800 antialiased dark:text-slate-100;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* M3 Expressive: Better text rendering */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display text-slate-900 dark:text-white;
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  /* M3 Expressive: Glass morphism effect */
+  .glass {
+    @apply bg-white/70 backdrop-blur-md dark:bg-slate-900/70;
+  }
+
+  .glass-subtle {
+    @apply bg-white/50 backdrop-blur-sm dark:bg-slate-900/50;
+  }
+
+  /* M3 Expressive: Gradient backgrounds */
+  .gradient-primary {
+    @apply bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600;
+  }
+
+  .gradient-surface {
+    @apply bg-gradient-to-b from-surface-dim to-surface;
+  }
+
+  .gradient-hero {
+    background: linear-gradient(135deg, 
+      rgb(var(--surface-dim)) 0%, 
+      rgb(var(--surface)) 50%,
+      rgb(var(--surface-dim)) 100%
+    );
+  }
+
+  /* M3 Expressive: Decorative mesh gradient - Fox orange */
+  .mesh-gradient {
+    background-image: 
+      radial-gradient(at 40% 20%, rgba(249, 115, 22, 0.12) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(251, 146, 60, 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(249, 115, 22, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 100%, rgba(251, 146, 60, 0.1) 0px, transparent 50%);
+  }
+
+  .dark .mesh-gradient {
+    background-image: 
+      radial-gradient(at 40% 20%, rgba(251, 146, 60, 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(249, 115, 22, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(251, 146, 60, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 100%, rgba(249, 115, 22, 0.12) 0px, transparent 50%);
+  }
+
+  /* Prose styling for blog content */
+  .prose {
+    @apply text-body-md text-slate-700 dark:text-slate-300;
+  }
+
+  .prose h1 {
+    @apply text-display-md mt-0 mb-6;
+  }
+
+  .prose h2 {
+    @apply text-display-sm mt-12 mb-4;
+  }
+
+  .prose h3 {
+    @apply text-xl font-semibold mt-8 mb-3;
+  }
+
+  .prose p {
+    @apply mb-6 leading-relaxed;
+  }
+
+  .prose ul,
+  .prose ol {
+    @apply mb-6 ml-6 space-y-2;
+  }
+
+  .prose ul {
+    @apply list-disc;
+  }
+
+  .prose ol {
+    @apply list-decimal;
+  }
+
+  .prose li {
+    @apply leading-relaxed;
+  }
+
+  .prose blockquote {
+    @apply border-l-4 border-primary-400 pl-6 italic my-6 text-slate-600 dark:text-slate-400;
+  }
+
+  .prose a {
+    @apply text-primary-600 dark:text-primary-400 font-medium hover:underline underline-offset-2;
+  }
+
+  .prose img {
+    @apply rounded-2xl my-8 shadow-soft-lg;
+  }
+
+  .prose strong {
+    @apply font-semibold text-slate-900 dark:text-white;
+  }
+
+  /* M3 Expressive: Focus states */
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-primary-400 dark:focus-visible:ring-offset-slate-900;
+  }
+
+  /* M3 Expressive: Interactive card hover */
+  .card-interactive {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-soft-lg;
+  }
+
+  /* M3 Expressive: Text gradient */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-500 via-primary-400 to-primary-600 bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  /* Staggered animation delays for lists */
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+  .stagger-6 { animation-delay: 0.6s; }
+}
