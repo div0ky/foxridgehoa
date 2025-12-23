@@ -3,7 +3,7 @@ const route = useRoute()
 
 const { data: post } = await useAsyncData(`post-${route.params.slug}`, () =>
   queryCollection('posts')
-    .where({ _path: `/posts/${route.params.slug}` })
+    .path(`/posts/${route.params.slug}`)
     .first(),
 )
 

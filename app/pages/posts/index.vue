@@ -1,9 +1,34 @@
 <script setup lang="ts">
 const { data: posts } = await useAsyncData('all-posts', () =>
   queryCollection('posts')
-    .sort({ publishedAt: -1 })
-    .find(),
+    .order('publishedAt', 'DESC')
+    .all(),
 )
+
+const selectedTag = ref<string | null>(null)
+
+const allTags = computed(() => {
+  if (!posts.value) return []
+  const tags = new Set<string>()
+  for (const post of posts.value) {
+    if (post.tags) {
+      for (const tag of post.tags) {
+        tags.add(tag)
+      }
+    }
+  }
+  return Array.from(tags).sort()
+})
+
+const filteredPosts = computed(() => {
+  if (!posts.value) return []
+  if (!selectedTag.value) return posts.value
+  return posts.value.filter(post => post.tags?.includes(selectedTag.value!))
+})
+
+function selectTag(tag: string) {
+  selectedTag.value = selectedTag.value === tag ? null : tag
+}
 </script>
 
 <template>
@@ -44,26 +69,63 @@ const { data: posts } = await useAsyncData('all-posts', () =>
       background="dim"
       padding="lg"
     >
+      <!-- Tag Filter -->
       <div
-        v-if="posts && posts.length > 0"
+        v-if="allTags.length > 0"
+        class="mb-8"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="mr-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+            Filter by:
+          </span>
+          <button
+            v-for="tag in allTags"
+            :key="tag"
+            class="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+            :class="selectedTag === tag
+              ? 'bg-primary-500 text-white shadow-md shadow-primary-500/25'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'"
+            @click="selectTag(tag)"
+          >
+            {{ tag }}
+          </button>
+          <button
+            v-if="selectedTag"
+            class="ml-2 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
+            @click="selectedTag = null"
+          >
+            <Icon
+              name="heroicons:x-mark"
+              class="h-3 w-3"
+            />
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="filteredPosts.length > 0"
         class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
       >
         <M3Card
-          v-for="post in posts"
-          :key="post._path"
+          v-for="post in filteredPosts"
+          :key="post.path"
           variant="elevated"
           hoverable
           as="article"
         >
           <div class="mb-4 flex flex-wrap gap-2">
-            <M3Badge
+            <button
               v-for="tag in post.tags"
               :key="tag"
-              variant="muted"
-              size="sm"
+              class="rounded-full px-2 py-0.5 text-xs font-medium transition-all"
+              :class="selectedTag === tag
+                ? 'bg-primary-500 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-primary-100 hover:text-primary-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-primary-900/30 dark:hover:text-primary-400'"
+              @click.stop="selectTag(tag)"
             >
               {{ tag }}
-            </M3Badge>
+            </button>
           </div>
           <h2 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">
             {{ post.title }}
@@ -82,17 +144,47 @@ const { data: posts } = await useAsyncData('all-posts', () =>
               {{ new Date(post.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
             </time>
           </div>
-          <M3Button
-            variant="ghost"
-            size="sm"
-            :to="post._path"
-            icon="heroicons:arrow-right"
-            icon-position="right"
+          <NuxtLink
+            :to="post.path"
+            class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-primary-600 transition-all hover:bg-primary-50 hover:text-primary-700 dark:text-primary-400 dark:hover:bg-primary-950/50 dark:hover:text-primary-300"
           >
             Read Article
-          </M3Button>
+            <Icon
+              name="heroicons:arrow-right"
+              class="h-4 w-4 shrink-0"
+            />
+          </NuxtLink>
         </M3Card>
       </div>
+      <!-- Empty state: no posts matching filter -->
+      <div
+        v-else-if="selectedTag && posts && posts.length > 0"
+        class="mx-auto max-w-md text-center"
+      >
+        <div class="mb-4 flex justify-center">
+          <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+            <Icon
+              name="heroicons:funnel"
+              class="h-8 w-8 text-slate-400"
+            />
+          </div>
+        </div>
+        <h3 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
+          No posts match "{{ selectedTag }}"
+        </h3>
+        <p class="mb-4 text-body-lg text-slate-600 dark:text-slate-400">
+          Try selecting a different tag or clear the filter.
+        </p>
+        <M3Button
+          variant="secondary"
+          size="sm"
+          @click="selectedTag = null"
+        >
+          Clear Filter
+        </M3Button>
+      </div>
+
+      <!-- Empty state: no posts at all -->
       <div
         v-else
         class="mx-auto max-w-md text-center"

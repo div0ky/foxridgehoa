@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const { data: posts } = await useAsyncData('recent-posts', () =>
   queryCollection('posts')
-    .sort({ publishedAt: -1 })
+    .order('publishedAt', 'DESC')
     .limit(3)
-    .find(),
+    .all(),
 )
 
 const boardMembers = [
@@ -318,7 +318,7 @@ const documents = [
       <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
         <M3Card
           v-for="post in posts"
-          :key="post._path"
+          :key="post.path"
           variant="elevated"
           hoverable
           as="article"
@@ -353,7 +353,7 @@ const documents = [
           <M3Button
             variant="ghost"
             size="sm"
-            :to="post._path"
+            :to="post.path"
             icon="heroicons:arrow-right"
             icon-position="right"
           >
