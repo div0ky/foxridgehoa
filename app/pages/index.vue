@@ -197,7 +197,7 @@ const documents = [
             A neighborhood built on community values
           </h2>
           <p class="mb-6 text-body-lg leading-relaxed text-slate-600 dark:text-slate-400">
-            Fox Ridge was established in 2005 as a family-oriented community dedicated to maintaining high standards of living and fostering a strong sense of community among residents.
+            Fox Ridge is a family-oriented community dedicated to maintaining high standards of living and fostering a strong sense of community among residents.
           </p>
           <p class="text-body-lg leading-relaxed text-slate-600 dark:text-slate-400">
             Located in the heart of Wentzville, we offer convenient access to excellent schools, shopping centers, parks, and major employment centers while maintaining a peaceful residential atmosphere.
@@ -217,10 +217,10 @@ const documents = [
               </div>
               <div>
                 <h3 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
-                  Established 2005
+                  Community Focused
                 </h3>
                 <p class="text-sm text-slate-600 dark:text-slate-400">
-                  Nearly 20 years of building community and maintaining excellence in our neighborhood.
+                  A neighborhood centered on shared standards, thoughtful stewardship, and resident involvement.
                 </p>
               </div>
             </div>
@@ -536,17 +536,36 @@ const documents = [
               />
             </div>
             <div>
-              <h3 class="font-semibold text-slate-900 dark:text-white">Board Meetings</h3>
-              <p class="text-sm text-slate-600 dark:text-slate-400">Open to all residents</p>
+              <h3 class="font-semibold text-slate-900 dark:text-white">2026 HOA Meetings</h3>
+              <p class="text-sm text-slate-600 dark:text-slate-400">Board meetings are closed to residents</p>
             </div>
           </div>
           <div class="pt-6">
             <p class="mb-4 text-slate-600 dark:text-slate-400">
-              Monthly board meetings are held on the <strong class="text-slate-900 dark:text-white">second Tuesday</strong> of each month at <strong class="text-slate-900 dark:text-white">7:00 PM</strong>.
+              The <strong class="text-slate-900 dark:text-white">Annual Meeting</strong> at the end of the year is open to residents.
             </p>
-            <p class="text-sm text-slate-500 dark:text-slate-500">
-              All residents are welcome and encouraged to attend. Meeting agendas are posted in advance.
-            </p>
+            <div class="space-y-3 text-sm text-slate-600 dark:text-slate-400">
+              <div class="flex items-center justify-between gap-4">
+                <span>1/7 at 5:30 PM</span>
+                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span>4/7 at 5:30 PM</span>
+                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span>7/7 at 5:30 PM</span>
+                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span>10/6 at 5:30 PM</span>
+                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
+              </div>
+              <div class="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 dark:border-slate-700">
+                <span>11/19 at 6:30 PM</span>
+                <span class="font-medium text-slate-900 dark:text-white">Annual Meeting</span>
+              </div>
+            </div>
           </div>
         </M3Card>
       </div>
