@@ -42,6 +42,12 @@ const isDark = computed(() => colorMode.value === 'dark')
             Board
           </NuxtLink>
           <NuxtLink
+            to="/#helpful-links"
+            class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+          >
+            Helpful Links
+          </NuxtLink>
+          <NuxtLink
             to="/posts"
             class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
           >
@@ -116,6 +122,14 @@ const isDark = computed(() => colorMode.value === 'dark')
                   Documents
                 </NuxtLink>
               </li>
+              <li>
+                <NuxtLink
+                  to="/#helpful-links"
+                  class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
+                >
+                  Helpful Links
+                </NuxtLink>
+              </li>
             </ul>
           </div>
 
@@ -135,7 +149,23 @@ const isDark = computed(() => colorMode.value === 'dark')
               </li>
               <li>
                 <a
-                  href="#contact"
+                  href="https://www.payhoa.com"
+                  class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
+                >
+                  Pay HOA Login
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://www.gsphillips.com/resale-documents"
+                  class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
+                >
+                  Closing / Resale Documents
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/#contact"
                   class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
                 >
                   Contact Us

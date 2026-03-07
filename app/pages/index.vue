@@ -6,6 +6,9 @@ const { data: posts } = await useAsyncData('recent-posts', () =>
     .all(),
 )
 
+const currentMonth = new Date().getMonth()
+const shouldShowHoaPaymentReminder = [0, 1, 11].includes(currentMonth)
+
 const boardMembers = [
   {
     name: 'Tim Soberg',
@@ -44,6 +47,23 @@ const amenities = [
     description: 'Located in the highly-rated Wentzville School District',
     icon: 'heroicons:academic-cap',
     title: 'Excellent Schools',
+  },
+]
+
+const helpfulLinks = [
+  {
+    description: 'Sign in to PayHOA to review your balance and submit HOA payments online.',
+    href: 'https://www.payhoa.com',
+    icon: 'heroicons:credit-card',
+    linkLabel: 'Open PayHOA',
+    title: 'Pay HOA Dues',
+  },
+  {
+    description: 'Request resale and closing documents through GSP Phillips.',
+    href: 'https://www.gsphillips.com/resale-documents',
+    icon: 'heroicons:document-duplicate',
+    linkLabel: 'Request Documents',
+    title: 'Closing / Resale Documents',
   },
 ]
 
@@ -122,6 +142,39 @@ const documents = [
             Learn More
           </M3Button>
         </div>
+
+        <M3Card
+          v-if="shouldShowHoaPaymentReminder"
+          variant="elevated"
+          class="mx-auto mt-10 max-w-3xl border border-primary-200/80 bg-white/90 text-left shadow-xl shadow-primary-500/10 dark:border-primary-800 dark:bg-slate-900/90"
+        >
+          <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary-700 dark:bg-primary-950/60 dark:text-primary-300">
+                <Icon
+                  name="heroicons:banknotes"
+                  class="h-4 w-4"
+                />
+                HOA Payments
+              </div>
+              <h2 class="text-2xl font-semibold text-slate-900 dark:text-white">
+                Need to pay your HOA bill?
+              </h2>
+              <p class="mt-2 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-400">
+                Residents can log in to PayHOA to make winter dues payments online during billing season.
+              </p>
+            </div>
+            <M3Button
+              variant="primary"
+              size="lg"
+              href="https://www.payhoa.com"
+              icon="heroicons:arrow-top-right-on-square"
+              icon-position="right"
+            >
+              Go to PayHOA
+            </M3Button>
+          </div>
+        </M3Card>
       </div>
     </M3Section>
 
@@ -216,6 +269,51 @@ const documents = [
           <p class="text-sm font-medium text-primary-600 dark:text-primary-400">
             {{ member.role }}
           </p>
+        </M3Card>
+      </div>
+    </M3Section>
+
+    <M3Section
+      id="helpful-links"
+      background="gradient"
+      padding="lg"
+    >
+      <M3SectionHeader
+        label="Resident Resources"
+        title="Helpful Links"
+        description="Quick access to the resident services people ask for most."
+        size="md"
+      />
+      <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-2">
+        <M3Card
+          v-for="link in helpfulLinks"
+          :key="link.title"
+          variant="elevated"
+          hoverable
+          as="article"
+          class="group"
+        >
+          <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-100 transition-colors group-hover:bg-primary-500 dark:bg-primary-900/50 dark:group-hover:bg-primary-600">
+            <Icon
+              :name="link.icon"
+              class="h-6 w-6 text-primary-600 transition-colors group-hover:text-white dark:text-primary-400 dark:group-hover:text-white"
+            />
+          </div>
+          <h3 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">
+            {{ link.title }}
+          </h3>
+          <p class="mb-5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            {{ link.description }}
+          </p>
+          <M3Button
+            variant="ghost"
+            size="sm"
+            :href="link.href"
+            icon="heroicons:arrow-top-right-on-square"
+            icon-position="right"
+          >
+            {{ link.linkLabel }}
+          </M3Button>
         </M3Card>
       </div>
     </M3Section>
