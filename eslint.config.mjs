@@ -1,13 +1,12 @@
-import stylistic from '@stylistic/eslint-plugin'
 // @ts-check
+// Stylistic rules come from `@nuxt/eslint` (avoid registering `@stylistic` twice).
 import perfectionist from 'eslint-plugin-perfectionist'
 
 import withNuxt from './.nuxt/eslint.config.mjs'
 
 export default withNuxt({
   plugins: {
-    '@stylistic': stylistic,
-    perfectionist,
+    perfectionist
   },
   rules: {
     '@stylistic/indent': ['error', 2],
@@ -21,26 +20,26 @@ export default withNuxt({
           ['builtin', 'external'],
           'internal',
           ['parent', 'sibling', 'index'],
-          'unknown',
+          'unknown'
         ],
         internalPattern: ['^~/'],
         newlinesBetween: 1,
-        type: 'natural',
-      },
+        type: 'natural'
+      }
     ],
     'perfectionist/sort-jsx-props': [
       'error',
       {
         order: 'asc',
-        type: 'natural',
-      },
+        type: 'natural'
+      }
     ],
     'perfectionist/sort-objects': [
       'error',
       {
         order: 'asc',
-        type: 'natural',
-      },
-    ],
-  },
+        type: 'natural'
+      }
+    ]
+  }
 })
