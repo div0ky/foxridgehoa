@@ -36,6 +36,14 @@ const primaryLinks = computed<NavigationMenuItem[]>(() => {
       to: '/admin/documents'
     })
     items.push({
+      icon: 'i-lucide-megaphone',
+      label: 'Site banner',
+      onSelect: () => {
+        sidebarOpen.value = false
+      },
+      to: '/admin/banner'
+    })
+    items.push({
       icon: 'i-lucide-user-plus',
       label: 'Invite user',
       onSelect: () => {
@@ -64,6 +72,8 @@ const adminTitle = computed(() => {
     return 'Overview'
   if (route.path === '/admin/documents')
     return 'Important Documents'
+  if (route.path === '/admin/banner')
+    return 'Site banner'
   if (route.path === '/admin/invite')
     return 'Invite user'
   return 'Admin'
