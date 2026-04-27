@@ -14,11 +14,13 @@ import type * as admin_provisioning from "../admin/provisioning.js";
 import type * as auth from "../auth.js";
 import type * as authz_requireBoardMember from "../authz/requireBoardMember.js";
 import type * as bootstrapFirst from "../bootstrapFirst.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as importantDocuments from "../importantDocuments.js";
 import type * as operatorProfiles from "../operatorProfiles.js";
 import type * as operatorProvisioning from "../operatorProvisioning.js";
 import type * as operators from "../operators.js";
+import type * as siteBanner from "../siteBanner.js";
 
 import type {
   ApiFromModules,
@@ -33,11 +35,13 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   "authz/requireBoardMember": typeof authz_requireBoardMember;
   bootstrapFirst: typeof bootstrapFirst;
+  crons: typeof crons;
   http: typeof http;
   importantDocuments: typeof importantDocuments;
   operatorProfiles: typeof operatorProfiles;
   operatorProvisioning: typeof operatorProvisioning;
   operators: typeof operators;
+  siteBanner: typeof siteBanner;
 }>;
 
 /**
