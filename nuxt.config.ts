@@ -1,6 +1,9 @@
 /* eslint-disable perfectionist/sort-objects -- nuxt/nuxt-config-keys-order enforces canonical key order */
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+
+  ssr: false,
+
   modules: [
     '@nuxt/fonts',
     '@nuxt/eslint',

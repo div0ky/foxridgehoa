@@ -2,8 +2,7 @@
 import { safeInternalPath } from '~/utils/safe-internal-path'
 
 definePageMeta({
-  layout: 'default',
-  skipConvexAuth: true
+  layout: 'default'
 })
 
 const route = useRoute()
