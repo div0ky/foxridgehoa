@@ -21,6 +21,13 @@ export default defineSchema({
     title: v.string()
   }),
 
+  meetingSchedules: defineTable({
+    annualMeeting: v.number(),
+    boardMeetings: v.array(v.number()),
+    updatedAt: v.number(),
+    year: v.number()
+  }).index('by_year', ['year']),
+
   operatorProfiles: defineTable({
     authUserId: v.string(),
     role: operatorRole

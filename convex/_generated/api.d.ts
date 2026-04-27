@@ -17,6 +17,7 @@ import type * as bootstrapFirst from "../bootstrapFirst.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as importantDocuments from "../importantDocuments.js";
+import type * as meetingSchedule from "../meetingSchedule.js";
 import type * as operatorProfiles from "../operatorProfiles.js";
 import type * as operatorProvisioning from "../operatorProvisioning.js";
 import type * as operators from "../operators.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   http: typeof http;
   importantDocuments: typeof importantDocuments;
+  meetingSchedule: typeof meetingSchedule;
   operatorProfiles: typeof operatorProfiles;
   operatorProvisioning: typeof operatorProvisioning;
   operators: typeof operators;
