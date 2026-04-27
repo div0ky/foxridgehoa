@@ -2,6 +2,8 @@
 const colorMode = useColorMode()
 const { isAuthenticated, signOut } = useConvexAuth()
 
+const { banner, isVisible } = await useSiteBanner()
+
 function toggleTheme() {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
 }
@@ -16,6 +18,10 @@ async function onSignOut() {
 
 <template>
   <div class="flex min-h-screen flex-col">
+    <M3SiteBanner
+      v-if="isVisible && banner"
+      :body="banner.body"
+    />
     <!-- M3 Expressive: Glass header with subtle backdrop blur -->
     <header class="sticky top-0 z-50 w-full border-b border-slate-200/50 bg-white/80 backdrop-blur-lg dark:border-slate-800/50 dark:bg-slate-900/80">
       <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">

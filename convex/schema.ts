@@ -24,5 +24,11 @@ export default defineSchema({
   operatorProfiles: defineTable({
     authUserId: v.string(),
     role: operatorRole
-  }).index('by_authUserId', ['authUserId'])
+  }).index('by_authUserId', ['authUserId']),
+
+  siteBanner: defineTable({
+    body: v.string(),
+    showUntil: v.number(),
+    updatedAt: v.number()
+  })
 })
