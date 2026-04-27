@@ -5,6 +5,13 @@ import { defaultImportantDocumentIcon } from '~/config/important-document-icons'
 
 const { documents, isPending: importantDocumentsPending } = await useImportantDocuments()
 
+const {
+  displayYear: hoaMeetingsDisplayYear,
+  isPending: hoaMeetingsPending,
+  meetingRows: hoaMeetingRows,
+  schedule: hoaMeetingSchedule
+} = await usePublicMeetingSchedule()
+
 const showImportantDocuments = computed(
   () => !importantDocumentsPending.value && documents.value.length > 0
 )
@@ -543,7 +550,7 @@ function iconForImportantDoc(icon?: string) {
             </div>
             <div>
               <h3 class="font-semibold text-slate-900 dark:text-white">
-                2026 HOA Meetings
+                {{ hoaMeetingsDisplayYear }} HOA Meetings
               </h3>
               <p class="text-sm text-slate-600 dark:text-slate-400">
                 Board meetings are closed to residents
@@ -551,29 +558,37 @@ function iconForImportantDoc(icon?: string) {
             </div>
           </div>
           <div class="pt-6">
-            <p class="mb-4 text-slate-600 dark:text-slate-400">
-              The <strong class="text-slate-900 dark:text-white">Annual Meeting</strong> at the end of the year is open to residents.
+            <div
+              v-if="hoaMeetingsPending"
+              class="text-sm text-slate-500 dark:text-slate-400"
+              role="status"
+            >
+              Loading…
+            </div>
+            <p
+              v-else-if="!hoaMeetingSchedule"
+              class="text-sm text-slate-600 dark:text-slate-400"
+            >
+              New meeting dates for this year are to be determined.
             </p>
-            <div class="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-              <div class="flex items-center justify-between gap-4">
-                <span>1/7 at 5:30 PM</span>
-                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
-              </div>
-              <div class="flex items-center justify-between gap-4">
-                <span>4/7 at 5:30 PM</span>
-                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
-              </div>
-              <div class="flex items-center justify-between gap-4">
-                <span>7/7 at 5:30 PM</span>
-                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
-              </div>
-              <div class="flex items-center justify-between gap-4">
-                <span>10/6 at 5:30 PM</span>
-                <span class="font-medium text-slate-900 dark:text-white">Board Meeting</span>
-              </div>
-              <div class="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 dark:border-slate-700">
-                <span>11/19 at 6:30 PM</span>
-                <span class="font-medium text-slate-900 dark:text-white">Annual Meeting</span>
+            <div
+              v-else
+              class="space-y-3 text-sm text-slate-600 dark:text-slate-400"
+            >
+              <div
+                v-for="(row, index) in hoaMeetingRows"
+                :key="`${row.kind}-${row.atMs}-${index}`"
+                class="flex items-center justify-between gap-4"
+                :class="[
+                  row.kind === 'annual' && 'border-t border-slate-100 pt-3 dark:border-slate-700',
+                  row.isPast && 'opacity-80'
+                ]"
+              >
+                <span :class="row.isPast && 'line-through'">{{ row.displayTime }}</span>
+                <span
+                  class="font-medium text-slate-900 dark:text-white"
+                  :class="row.isPast && 'line-through'"
+                >{{ row.label }}</span>
               </div>
             </div>
           </div>
