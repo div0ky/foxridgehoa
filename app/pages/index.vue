@@ -1,4 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { defaultImportantDocumentIcon } from '~/config/important-document-icons'
+
+const { documents, isPending: importantDocumentsPending } = await useImportantDocuments()
+
+const showImportantDocuments = computed(
+  () => !importantDocumentsPending.value && documents.value.length > 0
+)
+
 const { data: posts } = await useAsyncData('recent-posts', () =>
   queryCollection('posts')
     .order('publishedAt', 'DESC')
@@ -67,26 +77,9 @@ const helpfulLinks = [
   }
 ]
 
-const documents = [
-  {
-    description: 'Complete governing documents for the association',
-    icon: 'heroicons:document-text',
-    link: '#',
-    title: 'HOA Bylaws'
-  },
-  {
-    description: 'Guidelines for maintaining our beautiful community',
-    icon: 'heroicons:clipboard-document-list',
-    link: '#',
-    title: 'Community Rules'
-  },
-  {
-    description: 'Standards for home improvements and modifications',
-    icon: 'heroicons:pencil-square',
-    link: '#',
-    title: 'Architectural Guidelines'
-  }
-]
+function iconForImportantDoc(icon?: string) {
+  return icon?.trim() || defaultImportantDocumentIcon
+}
 </script>
 
 <template>
@@ -354,8 +347,9 @@ const documents = [
       </div>
     </M3Section>
 
-    <!-- Documents Section -->
+    <!-- Documents Section (Convex — board uploads) -->
     <M3Section
+      v-if="showImportantDocuments"
       id="documents"
       background="dim"
       padding="lg"
@@ -369,7 +363,7 @@ const documents = [
       <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
         <M3Card
           v-for="doc in documents"
-          :key="doc.title"
+          :key="doc.id"
           variant="elevated"
           hoverable
           as="article"
@@ -377,7 +371,7 @@ const documents = [
         >
           <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 transition-colors group-hover:bg-primary-100 dark:bg-slate-800 dark:group-hover:bg-primary-900/50">
             <Icon
-              :name="doc.icon"
+              :name="iconForImportantDoc(doc.icon)"
               class="h-6 w-6 text-slate-500 transition-colors group-hover:text-primary-600 dark:text-slate-400 dark:group-hover:text-primary-400"
             />
           </div>
@@ -387,15 +381,23 @@ const documents = [
           <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
             {{ doc.description }}
           </p>
-          <M3Button
-            variant="ghost"
-            size="sm"
-            :href="doc.link"
-            icon="heroicons:arrow-down-tray"
-            icon-position="right"
-          >
-            Download PDF
-          </M3Button>
+          <div class="flex flex-col gap-2">
+            <template
+              v-for="(file, fileIndex) in doc.files"
+              :key="`${doc.id}-${fileIndex}`"
+            >
+              <M3Button
+                v-if="file.downloadUrl"
+                variant="ghost"
+                size="sm"
+                :href="file.downloadUrl"
+                icon="heroicons:arrow-down-tray"
+                icon-position="right"
+              >
+                {{ doc.files.length > 1 ? file.label : 'Download PDF' }}
+              </M3Button>
+            </template>
+          </div>
         </M3Card>
       </div>
     </M3Section>

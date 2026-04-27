@@ -28,6 +28,14 @@ const primaryLinks = computed<NavigationMenuItem[]>(() => {
 
   if (profile.value?.role === 'boardMember') {
     items.push({
+      icon: 'i-lucide-files',
+      label: 'Important Documents',
+      onSelect: () => {
+        sidebarOpen.value = false
+      },
+      to: '/admin/documents'
+    })
+    items.push({
       icon: 'i-lucide-user-plus',
       label: 'Invite user',
       onSelect: () => {
@@ -54,6 +62,8 @@ const exitAdminNavItems = computed<NavigationMenuItem[]>(() => [
 const adminTitle = computed(() => {
   if (route.path === '/admin')
     return 'Overview'
+  if (route.path === '/admin/documents')
+    return 'Important Documents'
   if (route.path === '/admin/invite')
     return 'Invite user'
   return 'Admin'

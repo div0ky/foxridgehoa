@@ -82,16 +82,28 @@ const isBoard = computed(() => profile.value?.role === 'boardMember')
           description="You are signed in, but no operator profile row exists."
         />
 
-        <UButton
+        <div
           v-if="isBoard"
-          class="mt-6"
-          color="primary"
-          icon="i-lucide-user-plus"
-          label="Invite user"
-          leading
-          size="lg"
-          to="/admin/invite"
-        />
+          class="mt-6 flex flex-wrap gap-3"
+        >
+          <UButton
+            color="primary"
+            icon="i-lucide-files"
+            label="Important Documents"
+            leading
+            size="lg"
+            to="/admin/documents"
+          />
+          <UButton
+            color="neutral"
+            icon="i-lucide-user-plus"
+            label="Invite user"
+            leading
+            size="lg"
+            to="/admin/invite"
+            variant="outline"
+          />
+        </div>
       </template>
     </UCard>
   </div>
