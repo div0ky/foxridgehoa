@@ -37,18 +37,19 @@ const primaryLinks = computed<NavigationMenuItem[]>(() => {
     })
   }
 
-  items.push({
+  return items
+})
+
+const exitAdminNavItems = computed<NavigationMenuItem[]>(() => [
+  {
     icon: 'i-lucide-house',
-    label: 'Marketing site',
+    label: 'Exit Admin',
     onSelect: () => {
       sidebarOpen.value = false
     },
-    target: '_self',
     to: '/'
-  })
-
-  return items
-})
+  }
+])
 
 const adminTitle = computed(() => {
   if (route.path === '/admin')
@@ -94,7 +95,10 @@ async function onSignOut() {
       collapsible
       resizable
       :default-size="22"
-      :ui="{ footer: 'lg:border-t lg:border-default' }"
+      :ui="{
+        body: 'flex min-h-0 flex-1 flex-col',
+        footer: 'lg:border-t lg:border-default'
+      }"
     >
       <template #header="{ collapsed }">
         <div class="flex w-full flex-col gap-1">
@@ -118,9 +122,17 @@ async function onSignOut() {
 
       <template #default="{ collapsed }">
         <UNavigationMenu
-          class="grow"
           :collapsed="collapsed"
           :items="primaryLinks"
+          orientation="vertical"
+          popover
+          tooltip
+        />
+
+        <UNavigationMenu
+          class="mt-auto"
+          :collapsed="collapsed"
+          :items="exitAdminNavItems"
           orientation="vertical"
           popover
           tooltip
@@ -128,16 +140,14 @@ async function onSignOut() {
       </template>
 
       <template #footer>
-        <div class="flex flex-col gap-2">
-          <UButton
-            block
-            color="neutral"
-            variant="outline"
-            @click="onSignOut"
-          >
-            Sign out
-          </UButton>
-        </div>
+        <UButton
+          block
+          color="neutral"
+          variant="outline"
+          @click="onSignOut"
+        >
+          Sign out
+        </UButton>
       </template>
     </UDashboardSidebar>
 

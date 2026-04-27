@@ -117,6 +117,7 @@ async function submitInvite() {
           <UInput
             id="invite-name"
             v-model.trim="name"
+            class="w-full"
             autocomplete="name"
             maxlength="160"
             size="lg"
@@ -131,6 +132,7 @@ async function submitInvite() {
           <UInput
             id="invite-email"
             v-model.trim="email"
+            class="w-full"
             autocomplete="off"
             maxlength="254"
             name="email"
@@ -148,6 +150,7 @@ async function submitInvite() {
           <UInput
             id="invite-password"
             v-model="password"
+            class="w-full"
             autocomplete="new-password"
             placeholder="Temporary password"
             size="lg"
