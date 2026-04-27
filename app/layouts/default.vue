@@ -1,11 +1,17 @@
 <script setup lang="ts">
 const colorMode = useColorMode()
+const { isAuthenticated, signOut } = useConvexAuth()
 
 function toggleTheme() {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
 }
 
 const isDark = computed(() => colorMode.value === 'dark')
+
+async function onSignOut() {
+  await signOut()
+  await navigateTo('/')
+}
 </script>
 
 <template>
@@ -53,6 +59,20 @@ const isDark = computed(() => colorMode.value === 'dark')
           >
             Posts
           </NuxtLink>
+          <NuxtLink
+            to="/admin"
+            class="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            Admin
+          </NuxtLink>
+          <M3Button
+            v-if="isAuthenticated"
+            variant="ghost"
+            size="sm"
+            @click="onSignOut"
+          >
+            Sign out
+          </M3Button>
           <div class="mx-2 h-6 w-px bg-slate-200 dark:bg-slate-700" />
           <M3IconButton
             :icon="isDark ? 'heroicons:sun' : 'heroicons:moon'"
@@ -88,7 +108,7 @@ const isDark = computed(() => colorMode.value === 'dark')
               <span class="font-bold text-slate-900 dark:text-white">Fox Ridge HOA</span>
             </div>
             <p class="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              Serving the Fox Ridge community in Wentzville, MO. Dedicated to maintaining a beautiful and welcoming neighborhood.
+              Serving the Fox Ridge community in Wentzville, MO, since 2005. Dedicated to maintaining a beautiful and welcoming neighborhood.
             </p>
           </div>
 
