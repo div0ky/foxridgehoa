@@ -11,19 +11,19 @@ withDefaults(defineProps<Props>(), {
   align: 'center',
   description: undefined,
   label: undefined,
-  size: 'md',
+  size: 'md'
 })
 
 const alignClasses = {
   center: 'text-center mx-auto',
   left: 'text-left',
-  right: 'text-right ml-auto',
+  right: 'text-right ml-auto'
 } as const
 
 const titleClasses = {
   lg: 'text-display-lg',
   md: 'text-display-md',
-  sm: 'text-display-sm',
+  sm: 'text-display-sm'
 } as const
 </script>
 

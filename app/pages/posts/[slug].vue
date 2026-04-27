@@ -4,16 +4,18 @@ const route = useRoute()
 const { data: post } = await useAsyncData(`post-${route.params.slug}`, () =>
   queryCollection('posts')
     .path(`/posts/${route.params.slug}`)
-    .first(),
+    .first()
 )
 
 if (!post.value) {
   throw createError({ fatal: true, statusCode: 404, statusMessage: 'Post not found' })
 }
 
+const article = post.value
+
 useSeoMeta({
-  description: post.value.description,
-  title: post.value.title,
+  description: article.description,
+  title: article.title
 })
 </script>
 
@@ -40,7 +42,7 @@ useSeoMeta({
 
         <div class="mb-6 flex flex-wrap gap-2">
           <M3Badge
-            v-for="tag in post.tags"
+            v-for="tag in article.tags"
             :key="tag"
             variant="soft"
             size="md"
@@ -50,7 +52,7 @@ useSeoMeta({
         </div>
 
         <h1 class="mb-6 font-display text-display-md text-slate-900 dark:text-white">
-          {{ post.title }}
+          {{ article.title }}
         </h1>
 
         <div class="flex items-center gap-4">
@@ -62,13 +64,13 @@ useSeoMeta({
           </div>
           <div>
             <p class="font-semibold text-slate-900 dark:text-white">
-              {{ post.author }}
+              {{ article.author }}
             </p>
             <time
-              :datetime="post.publishedAt"
+              :datetime="article.publishedAt"
               class="text-sm text-slate-500 dark:text-slate-400"
             >
-              {{ new Date(post.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}
+              {{ new Date(article.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}
             </time>
           </div>
         </div>
@@ -83,15 +85,15 @@ useSeoMeta({
     >
       <article class="mx-auto max-w-3xl">
         <div
-          v-if="post.description"
+          v-if="article.description"
           class="mb-10 rounded-2xl border-l-4 border-primary-400 bg-primary-50 p-6 dark:bg-primary-950/30"
         >
           <p class="text-lg leading-relaxed text-primary-800 dark:text-primary-200">
-            {{ post.description }}
+            {{ article.description }}
           </p>
         </div>
         <div class="prose max-w-none">
-          <ContentRenderer :value="post" />
+          <ContentRenderer :value="article" />
         </div>
       </article>
     </M3Section>

@@ -8,21 +8,21 @@ interface Props {
 withDefaults(defineProps<Props>(), {
   background: 'default',
   id: undefined,
-  padding: 'lg',
+  padding: 'lg'
 })
 
 const backgroundClasses = {
   default: 'bg-surface',
   dim: 'bg-surface-dim',
   gradient: 'gradient-hero',
-  mesh: 'bg-surface mesh-gradient',
+  mesh: 'bg-surface mesh-gradient'
 } as const
 
 const paddingClasses = {
   lg: 'py-20 lg:py-28',
   md: 'py-16 lg:py-20',
   sm: 'py-12 lg:py-16',
-  xl: 'py-24 lg:py-32',
+  xl: 'py-24 lg:py-32'
 } as const
 </script>
 

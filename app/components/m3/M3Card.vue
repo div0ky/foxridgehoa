@@ -8,13 +8,13 @@ interface Props {
 withDefaults(defineProps<Props>(), {
   as: 'div',
   hoverable: false,
-  variant: 'elevated',
+  variant: 'elevated'
 })
 
 const variantClasses = {
   elevated: 'bg-surface-elevated border border-slate-100 shadow-soft dark:border-slate-800 dark:shadow-none',
   filled: 'bg-primary-50 dark:bg-primary-950/40',
-  outlined: 'border-2 border-slate-200 dark:border-slate-700',
+  outlined: 'border-2 border-slate-200 dark:border-slate-700'
 } as const
 </script>
 

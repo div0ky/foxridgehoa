@@ -3,7 +3,7 @@ const { data: posts } = await useAsyncData('recent-posts', () =>
   queryCollection('posts')
     .order('publishedAt', 'DESC')
     .limit(3)
-    .all(),
+    .all()
 )
 
 const currentMonth = new Date().getMonth()
@@ -13,41 +13,41 @@ const boardMembers = [
   {
     name: 'Tim Soberg',
     role: 'President',
-    termYear: 2026,
+    termYear: 2026
   },
   {
     name: 'Andrew Martin',
     role: 'Board Member',
-    termYear: 2027,
+    termYear: 2027
   },
   {
     name: 'Aaron Spurlock',
     role: 'Board Member',
-    termYear: 2028,
-  },
+    termYear: 2028
+  }
 ]
 
 const amenities = [
   {
     description: 'Well-maintained properties in a family-friendly neighborhood',
     icon: 'heroicons:home-modern',
-    title: 'Beautiful Homes',
+    title: 'Beautiful Homes'
   },
   {
     description: 'Scenic paths throughout the neighborhood for walking and jogging',
     icon: 'heroicons:map',
-    title: 'Walking Paths',
+    title: 'Walking Paths'
   },
   {
     description: 'Safe outdoor play areas for children and families',
     icon: 'heroicons:puzzle-piece',
-    title: 'Playgrounds',
+    title: 'Playgrounds'
   },
   {
     description: 'Located in the highly-rated Wentzville School District',
     icon: 'heroicons:academic-cap',
-    title: 'Excellent Schools',
-  },
+    title: 'Excellent Schools'
+  }
 ]
 
 const helpfulLinks = [
@@ -56,15 +56,15 @@ const helpfulLinks = [
     href: 'https://www.payhoa.com',
     icon: 'heroicons:credit-card',
     linkLabel: 'Open PayHOA',
-    title: 'Pay HOA Dues',
+    title: 'Pay HOA Dues'
   },
   {
     description: 'Request resale and closing documents through GSP Phillips.',
     href: 'https://www.gsphillips.com/resale-documents',
     icon: 'heroicons:document-duplicate',
     linkLabel: 'Request Documents',
-    title: 'Closing / Resale Documents',
-  },
+    title: 'Closing / Resale Documents'
+  }
 ]
 
 const documents = [
@@ -72,20 +72,20 @@ const documents = [
     description: 'Complete governing documents for the association',
     icon: 'heroicons:document-text',
     link: '#',
-    title: 'HOA Bylaws',
+    title: 'HOA Bylaws'
   },
   {
     description: 'Guidelines for maintaining our beautiful community',
     icon: 'heroicons:clipboard-document-list',
     link: '#',
-    title: 'Community Rules',
+    title: 'Community Rules'
   },
   {
     description: 'Standards for home improvements and modifications',
     icon: 'heroicons:pencil-square',
     link: '#',
-    title: 'Architectural Guidelines',
-  },
+    title: 'Architectural Guidelines'
+  }
 ]
 </script>
 
@@ -197,7 +197,7 @@ const documents = [
             A neighborhood built on community values
           </h2>
           <p class="mb-6 text-body-lg leading-relaxed text-slate-600 dark:text-slate-400">
-            Fox Ridge is a family-oriented community dedicated to maintaining high standards of living and fostering a strong sense of community among residents.
+            The Fox Ridge subdivision was established on January 19, 2005. Today it is a family-oriented community dedicated to maintaining high standards of living and fostering a strong sense of community among residents.
           </p>
           <p class="text-body-lg leading-relaxed text-slate-600 dark:text-slate-400">
             Located in the heart of Wentzville, we offer convenient access to excellent schools, shopping centers, parks, and major employment centers while maintaining a peaceful residential atmosphere.
@@ -517,8 +517,12 @@ const documents = [
                 />
               </div>
               <div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">Location</p>
-                <p class="font-medium text-slate-900 dark:text-white">Wentzville, MO 63385</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">
+                  Location
+                </p>
+                <p class="font-medium text-slate-900 dark:text-white">
+                  Wentzville, MO 63385
+                </p>
               </div>
             </div>
           </div>
@@ -536,8 +540,12 @@ const documents = [
               />
             </div>
             <div>
-              <h3 class="font-semibold text-slate-900 dark:text-white">2026 HOA Meetings</h3>
-              <p class="text-sm text-slate-600 dark:text-slate-400">Board meetings are closed to residents</p>
+              <h3 class="font-semibold text-slate-900 dark:text-white">
+                2026 HOA Meetings
+              </h3>
+              <p class="text-sm text-slate-600 dark:text-slate-400">
+                Board meetings are closed to residents
+              </p>
             </div>
           </div>
           <div class="pt-6">

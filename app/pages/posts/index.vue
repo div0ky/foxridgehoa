@@ -2,7 +2,7 @@
 const { data: posts } = await useAsyncData('all-posts', () =>
   queryCollection('posts')
     .order('publishedAt', 'DESC')
-    .all(),
+    .all()
 )
 
 const selectedTag = ref<string | null>(null)

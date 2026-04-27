@@ -4,19 +4,19 @@ export default defineContentConfig({
   collections: {
     content: defineCollection({
       source: '**',
-      type: 'page',
+      type: 'page'
     }),
     posts: defineCollection({
-      source: 'posts/**',
-      type: 'page',
       schema: z.object({
-        title: z.string(),
-        description: z.string(),
         author: z.string(),
-        publishedAt: z.string(),
+        description: z.string(),
         image: z.string().optional(),
+        publishedAt: z.string(),
         tags: z.array(z.string()).optional(),
+        title: z.string()
       }),
-    }),
-  },
+      source: 'posts/**',
+      type: 'page'
+    })
+  }
 })
