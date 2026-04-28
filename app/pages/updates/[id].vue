@@ -1,29 +1,96 @@
 <script setup lang="ts">
 import type { Id } from '~~/convex/_generated/dataModel'
 
-import { computed, watch } from 'vue'
+import { ConvexHttpClient } from 'convex/browser'
+import { computed } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
-import { communityUpdateHeadline } from '~/utils/communityUpdateExcerpt'
+import {
+  getCommunityUpdateCanonicalUrl,
+  getCommunityUpdatePostedAtLabel,
+  getCommunityUpdateSeoDescription,
+  getCommunityUpdateSeoTitle
+} from '~/utils/communityUpdateExcerpt'
 
 const route = useRoute()
+const runtimeConfig = useRuntimeConfig()
 
 const updateId = computed(() => route.params.id as Id<'communityUpdates'>)
 
-const queryState = await useConvexQuery(
-  api.communityUpdates.getCommunityUpdatePublic,
-  () => ({ updateId: updateId.value })
+const { data: queryResult, error } = await useAsyncData(
+  () => `community-update-${route.params.id}`,
+  async () => {
+    if (!runtimeConfig.public.convexUrl) {
+      throw createError({
+        fatal: true,
+        statusCode: 500,
+        statusMessage: 'Convex URL is not configured'
+      })
+    }
+
+    try {
+      const client = new ConvexHttpClient(runtimeConfig.public.convexUrl)
+      return await client.query(api.communityUpdates.getCommunityUpdatePublic, {
+        updateId: updateId.value
+      })
+    } catch {
+      return {
+        data: { update: null },
+        ok: true as const
+      }
+    }
+  }
 )
 
-const update = computed(() => queryState.data.value?.data.update ?? null)
-const pending = computed(() => queryState.status.value === 'pending')
+const update = computed(() => queryResult.value?.data.update ?? null)
+const pending = computed(() => !queryResult.value && !error.value)
 const toast = useToast()
+
+if (error.value || (!pending.value && !update.value)) {
+  throw createError({
+    fatal: true,
+    statusCode: 404,
+    statusMessage: 'Update not found'
+  })
+}
 
 const authorHandle = computed(() => {
   const name = update.value?.authorDisplayName ?? 'Fox Ridge HOA'
   const compact = name.replace(/[^a-z0-9]/gi, '').toLowerCase()
   return `@${compact || 'foxridgehoa'}`
+})
+
+const authorDisplayName = computed(() => update.value?.authorDisplayName ?? 'Fox Ridge HOA')
+const seoTitle = computed(() =>
+  getCommunityUpdateSeoTitle({
+    bodyMarkdown: update.value?.bodyMarkdown ?? ''
+  })
+)
+const pageTitle = computed(() => `${seoTitle.value} · Fox Ridge HOA`)
+const seoDescription = computed(() =>
+  getCommunityUpdateSeoDescription({
+    authorDisplayName: authorDisplayName.value,
+    bodyMarkdown: update.value?.bodyMarkdown ?? ''
+  })
+)
+const canonicalUrl = computed(() =>
+  getCommunityUpdateCanonicalUrl({
+    siteUrl: runtimeConfig.public.siteUrl,
+    updateId: updateId.value
+  })
+)
+const postedAtLabel = computed(() => {
+  if (!update.value)
+    return ''
+
+  return getCommunityUpdatePostedAtLabel({ postedAt: update.value.postedAt })
+})
+const articlePublishedTime = computed(() => {
+  if (!update.value)
+    return ''
+
+  return new Date(update.value.postedAt).toISOString()
 })
 
 const formattedPostedAt = computed(() => {
@@ -56,37 +123,61 @@ async function copyUpdateLink() {
   })
 }
 
-watch(
-  () => ({
-    pending: pending.value,
-    resolved: update.value
-  }),
-  ({ pending: isPending, resolved }) => {
-    if (isPending)
-      return
-    if (!resolved) {
-      throw createError({
-        fatal: true,
-        statusCode: 404,
-        statusMessage: 'Update not found'
-      })
+useSeoMeta({
+  description: seoDescription,
+  ogDescription: seoDescription,
+  ogTitle: pageTitle,
+  ogType: 'article',
+  ogUrl: canonicalUrl,
+  title: pageTitle,
+  twitterCard: 'summary_large_image',
+  twitterDescription: seoDescription,
+  twitterTitle: pageTitle
+})
+
+useHead({
+  link: [
+    {
+      href: canonicalUrl,
+      rel: 'canonical'
     }
-    const titleSuffix = communityUpdateHeadline(resolved.bodyMarkdown, 60)
-    useSeoMeta({
-      description: resolved.bodyMarkdown.replace(/\s+/g, ' ').trim().slice(0, 160),
-      title: `${titleSuffix} · Fox Ridge HOA`
-    })
+  ],
+  meta: [
+    {
+      content: articlePublishedTime,
+      property: 'article:published_time'
+    }
+  ]
+})
+
+defineOgImage('CommunityUpdate', {
+  authorDisplayName,
+  description: seoDescription,
+  postedAtLabel,
+  title: seoTitle
+}, [
+  {
+    cacheMaxAgeSeconds: 60 * 60 * 24 * 7,
+    height: 630,
+    key: 'og',
+    width: 1200
   },
-  { immediate: true }
-)
+  {
+    cacheMaxAgeSeconds: 60 * 60 * 24 * 7,
+    height: 800,
+    key: 'whatsapp',
+    width: 800
+  }
+])
 </script>
 
 <template>
-  <div>
+  <div class="flex flex-1 flex-col bg-surface mesh-gradient">
     <M3Section
       v-if="pending"
-      background="mesh"
+      background="default"
       padding="lg"
+      class="flex flex-1 flex-col justify-center bg-transparent"
     >
       <div class="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-slate-200/80 bg-white/80 px-6 py-5 text-slate-600 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
         <Icon
@@ -101,8 +192,9 @@ watch(
 
     <template v-else-if="update">
       <M3Section
-        background="mesh"
+        background="default"
         padding="md"
+        class="flex flex-1 flex-col justify-center bg-transparent"
       >
         <template #background>
           <div class="pointer-events-none absolute -right-32 -top-32 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl" />
@@ -146,7 +238,7 @@ watch(
                   />
                 </div>
                 <p class="text-sm text-slate-500 dark:text-slate-400">
-                  {{ authorHandle }} · Follow
+                  {{ authorHandle }}
                 </p>
               </div>
 

@@ -5,6 +5,18 @@ function withoutTrailingSlash(url: string | undefined): string | undefined {
   return url?.replace(/\/+$/, '')
 }
 
+function publicSiteUrl(): string {
+  return withoutTrailingSlash(process.env.NUXT_PUBLIC_SITE_URL)
+    ?? withoutTrailingSlash(process.env.SITE_URL)
+    ?? 'https://foxridgehoa.com'
+}
+
+function publicConvexUrl(): string {
+  return withoutTrailingSlash(process.env.NUXT_PUBLIC_CONVEX_URL)
+    ?? withoutTrailingSlash(process.env.CONVEX_URL)
+    ?? ''
+}
+
 export default defineNuxtConfig({
 
   modules: [
@@ -17,15 +29,31 @@ export default defineNuxtConfig({
     '@nuxt/icon',
     '@nuxt/image',
     '@nuxtjs/color-mode',
+    'nuxt-og-image',
     'better-convex-nuxt'
   ],
-  ssr: false,
 
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
+  site: {
+    name: 'Fox Ridge HOA',
+    url: publicSiteUrl()
+  },
   colorMode: {
     classSuffix: '',
     preference: 'system'
+  },
+  runtimeConfig: {
+    public: {
+      convexUrl: publicConvexUrl(),
+      siteUrl: publicSiteUrl()
+    }
+  },
+
+  routeRules: {
+    '/**': { ssr: false },
+    '/_og/**': { ssr: true },
+    '/updates/**': { ssr: true }
   },
 
   compatibilityDate: '2024-07-11',
@@ -39,6 +67,7 @@ export default defineNuxtConfig({
         '@vue/devtools-core',
         '@vue/devtools-kit',
         'convex/server',
+        'convex/browser',
         '@comark/vue'
       ]
     }
