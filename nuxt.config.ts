@@ -28,6 +28,16 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'vercel-static'
   },
+  vite: {
+    optimizeDeps: {
+      include: [
+        '@vue/devtools-core',
+        '@vue/devtools-kit',
+        'convex/server',
+        '@comark/vue'
+      ]
+    }
+  },
   convex: {
     auth: {
       enabled: true,
