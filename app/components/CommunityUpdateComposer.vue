@@ -236,20 +236,22 @@ async function submitPublish() {
       <UEditor
         v-model="bodyMarkdown"
         content-type="markdown"
-        class="w-full"
+        class="min-w-0 w-full"
         placeholder="Write your update…"
         :ui="{
-          root: 'flex min-h-[300px] flex-col overflow-hidden rounded-md border border-default bg-default shadow-sm',
+          root: 'flex min-h-[300px] min-w-0 flex-col overflow-hidden rounded-md border border-default bg-default shadow-sm',
           content: 'flex-1',
           base: 'min-h-[240px] px-4 py-4 sm:px-4'
         }"
       >
         <template #default="{ editor }">
-          <UEditorToolbar
-            :editor="editor"
-            :items="editorToolbarItems"
-            class="border-b border-default bg-muted/40 px-2 py-1"
-          />
+          <div class="overflow-x-auto border-b border-default bg-muted/40">
+            <UEditorToolbar
+              :editor="editor"
+              :items="editorToolbarItems"
+              class="min-w-max px-2 py-1"
+            />
+          </div>
         </template>
       </UEditor>
 
@@ -276,13 +278,16 @@ async function submitPublish() {
           <UBadge
             v-for="(file, i) in pendingFiles"
             :key="`${file.name}-${i}`"
+            class="max-w-full"
             color="neutral"
             variant="subtle"
           >
-            {{ file.name }}
+            <span class="inline-block max-w-48 truncate align-bottom">
+              {{ file.name }}
+            </span>
             <button
               type="button"
-              class="ml-1 text-muted underline"
+              class="ml-1 shrink-0 text-muted underline"
               @click="removePendingFile(i)"
             >
               Remove
@@ -293,6 +298,7 @@ async function submitPublish() {
 
       <UButton
         color="primary"
+        class="w-full sm:w-auto"
         :loading="publishing"
         @click="submitPublish"
       >

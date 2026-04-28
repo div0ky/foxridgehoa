@@ -359,7 +359,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               class="flex flex-col gap-3 sm:flex-row sm:items-end"
             >
               <UFormField
-                class="flex-1"
+                class="min-w-0 flex-1"
                 :label="index === 0 ? 'Display name' : undefined"
               >
                 <UInput
@@ -369,7 +369,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                 />
               </UFormField>
               <UFormField
-                class="flex-1"
+                class="min-w-0 flex-1"
                 :label="index === 0 ? 'Email' : undefined"
               >
                 <UInput
@@ -382,6 +382,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               <UButton
                 color="neutral"
                 icon="i-lucide-minus"
+                class="w-full sm:w-auto"
                 type="button"
                 variant="outline"
                 @click="removeRecipientRow(index)"
@@ -393,6 +394,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
             <UButton
               color="neutral"
               icon="i-lucide-plus"
+              class="w-full sm:w-auto"
               type="button"
               variant="outline"
               @click="addRecipientRow"
@@ -401,6 +403,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
             </UButton>
             <UButton
               color="primary"
+              class="w-full sm:w-auto"
               :loading="savingRouting"
               type="submit"
             >
@@ -424,6 +427,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
             <UButton
               color="neutral"
               icon="i-lucide-refresh-cw"
+              class="w-full sm:w-auto"
               type="button"
               variant="outline"
               @click="refreshSubmissionList"
@@ -453,7 +457,73 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
           v-else
           class="space-y-4"
         >
-          <div class="overflow-x-auto rounded-lg border border-default">
+          <div class="space-y-3 md:hidden">
+            <article
+              v-for="row in accumulatedSubmissions"
+              :key="row.submissionId"
+              class="rounded-lg border border-default p-4"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-highlighted">
+                    {{ row.submitterName }}
+                  </p>
+                  <p class="mt-1 break-words text-xs text-muted">
+                    {{ row.streetAddress }}
+                  </p>
+                </div>
+                <UBadge
+                  class="shrink-0"
+                  :color="statusColor(row.emailDeliveryStatus)"
+                  variant="subtle"
+                >
+                  {{ row.emailDeliveryStatus }}
+                </UBadge>
+              </div>
+
+              <p
+                v-if="row.emailLastError"
+                class="mt-2 break-words text-xs text-error"
+              >
+                {{ formatBoardContactDeliveryError(row.emailLastError) }}
+              </p>
+
+              <p class="mt-3 text-xs text-muted">
+                {{ formatWhen(row.createdAt) }}
+              </p>
+              <p class="mt-3 line-clamp-4 break-words text-sm text-muted">
+                {{ previewMessage(row.message) }}
+              </p>
+
+              <div class="mt-4 flex flex-col gap-2">
+                <UButton
+                  block
+                  color="neutral"
+                  icon="i-lucide-eye"
+                  size="sm"
+                  type="button"
+                  variant="subtle"
+                  @click="openMessageModal(row)"
+                >
+                  Read message
+                </UButton>
+                <UButton
+                  block
+                  color="error"
+                  icon="i-lucide-trash-2"
+                  :loading="deletingSubmissionId === row.submissionId"
+                  size="sm"
+                  type="button"
+                  variant="soft"
+                  @click="openDeleteModal(row)"
+                >
+                  Delete
+                </UButton>
+              </div>
+            </article>
+          </div>
+
+          <div class="hidden overflow-x-auto rounded-lg border border-default md:block">
             <table class="w-full min-w-[640px] text-left text-sm">
               <thead class="border-b border-default bg-muted/40">
                 <tr>
@@ -610,9 +680,10 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
         </template>
 
         <template #footer>
-          <div class="flex w-full justify-end gap-3">
+          <div class="flex w-full flex-col-reverse justify-end gap-3 sm:flex-row">
             <UButton
               color="neutral"
+              class="w-full sm:w-auto"
               :disabled="deletingSubmissionId !== null"
               type="button"
               variant="outline"
@@ -623,6 +694,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
             <UButton
               color="error"
               icon="i-lucide-trash-2"
+              class="w-full sm:w-auto"
               :loading="deletingSubmissionId !== null"
               type="button"
               @click="confirmDeleteSubmission"

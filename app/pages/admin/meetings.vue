@@ -256,6 +256,7 @@ async function submitSave() {
 
         <UButton
           color="primary"
+          class="w-full sm:w-auto"
           :loading="saving"
           type="submit"
         >

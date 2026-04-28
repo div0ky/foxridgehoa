@@ -425,11 +425,11 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                 <div
                   v-for="(row, index) in createRows"
                   :key="index"
-                  class="flex flex-wrap items-end gap-3 rounded-lg border border-default p-3"
+                  class="flex flex-col gap-3 rounded-lg border border-default p-3 sm:flex-row sm:items-end"
                 >
                   <UFormField
                     label="Label"
-                    class="min-w-[140px] flex-1"
+                    class="min-w-0 flex-1"
                   >
                     <UInput
                       v-model.trim="row.label"
@@ -440,11 +440,11 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                   </UFormField>
                   <UFormField
                     label="PDF file"
-                    class="min-w-[200px] flex-1"
+                    class="min-w-0 flex-1"
                   >
                     <input
                       accept=".pdf,application/pdf"
-                      class="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-elevated file:px-3 file:py-1.5"
+                      class="block w-full max-w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-elevated file:px-3 file:py-1.5"
                       type="file"
                       @change="(e) => {
                         const input = e.target as HTMLInputElement
@@ -456,6 +456,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     v-if="createRows.length > 1"
                     color="neutral"
                     icon="i-lucide-trash-2"
+                    class="w-full sm:w-auto"
                     size="sm"
                     variant="ghost"
                     @click="removeCreatePdfRow(index)"
@@ -475,6 +476,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                 <UButton
                   icon="i-lucide-upload"
                   label="Publish document"
+                  class="w-full sm:w-auto"
                   type="submit"
                   trailing
                   :loading="creating"
@@ -498,12 +500,12 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
               variant="outline"
             >
               <div class="flex flex-col gap-4">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 class="font-semibold text-highlighted">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <h3 class="break-words font-semibold text-highlighted">
                       {{ doc.title }}
                     </h3>
-                    <p class="mt-1 text-sm text-muted">
+                    <p class="mt-1 break-words text-sm text-muted">
                       {{ doc.description }}
                     </p>
                   </div>
@@ -511,28 +513,28 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     <UButton
                       color="neutral"
                       icon="i-lucide-arrow-up"
-                      size="xs"
+                      size="sm"
                       variant="outline"
                       @click="moveDocument(doc.id, -1)"
                     />
                     <UButton
                       color="neutral"
                       icon="i-lucide-arrow-down"
-                      size="xs"
+                      size="sm"
                       variant="outline"
                       @click="moveDocument(doc.id, 1)"
                     />
                     <UButton
                       color="neutral"
                       icon="i-lucide-pencil"
-                      size="xs"
+                      size="sm"
                       variant="soft"
                       @click="startEditMeta(doc)"
                     />
                     <UButton
                       color="error"
                       icon="i-lucide-trash-2"
-                      size="xs"
+                      size="sm"
                       variant="ghost"
                       @click="onDeleteDocument(doc.id)"
                     />
@@ -567,15 +569,17 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                       label-key="label"
                     />
                   </UFormField>
-                  <div class="flex gap-2">
+                  <div class="flex flex-col gap-2 sm:flex-row">
                     <UButton
                       label="Save"
+                      class="w-full sm:w-auto"
                       :loading="savingMeta"
                       @click="saveEditMeta(doc.id)"
                     />
                     <UButton
                       color="neutral"
                       label="Cancel"
+                      class="w-full sm:w-auto"
                       variant="ghost"
                       @click="cancelEditMeta"
                     />
@@ -587,21 +591,23 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                   <li
                     v-for="file in doc.files"
                     :key="file.storageId"
-                    class="flex flex-wrap items-center justify-between gap-2 text-sm"
+                    class="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <span class="text-highlighted">{{ file.label }}</span>
-                    <div class="flex gap-2">
+                    <span class="break-words text-highlighted">{{ file.label }}</span>
+                    <div class="flex flex-col gap-2 sm:flex-row">
                       <UButton
                         color="neutral"
                         label="Replace"
-                        size="xs"
+                        class="w-full sm:w-auto"
+                        size="sm"
                         variant="outline"
                         @click="openReplacePicker(doc.id, file.storageId)"
                       />
                       <UButton
                         color="error"
                         icon="i-lucide-x"
-                        size="xs"
+                        class="w-full sm:w-auto"
+                        size="sm"
                         variant="ghost"
                         @click="onRemoveFile(doc.id, file.storageId)"
                       />
@@ -610,10 +616,10 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                 </ul>
 
                 <!-- Append -->
-                <div class="flex flex-wrap items-end gap-3 border-muted border-t pt-4">
+                <div class="flex flex-col gap-3 border-muted border-t pt-4 sm:flex-row sm:items-end">
                   <UFormField
                     label="Add PDF label"
-                    class="min-w-[140px]"
+                    class="min-w-0 flex-1"
                   >
                     <UInput
                       v-model.trim="appendDrafts[doc.id]!.label"
@@ -622,10 +628,13 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                       size="sm"
                     />
                   </UFormField>
-                  <UFormField label="File">
+                  <UFormField
+                    label="File"
+                    class="min-w-0 flex-1"
+                  >
                     <input
                       accept=".pdf,application/pdf"
-                      class="block text-sm"
+                      class="block w-full max-w-full text-sm"
                       type="file"
                       @change="setAppendFile(doc.id, $event)"
                     >
@@ -633,6 +642,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                   <UButton
                     icon="i-lucide-plus"
                     label="Add PDF"
+                    class="w-full sm:w-auto"
                     size="sm"
                     :loading="appendingForId === doc.id"
                     @click="submitAppend(doc.id)"

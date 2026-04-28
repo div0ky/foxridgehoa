@@ -202,9 +202,10 @@ async function submitClear() {
           />
         </UFormField>
 
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <UButton
             color="primary"
+            class="w-full sm:w-auto"
             :loading="saving"
             type="submit"
           >
@@ -212,6 +213,7 @@ async function submitClear() {
           </UButton>
           <UButton
             color="neutral"
+            class="w-full sm:w-auto"
             :disabled="!serverBanner"
             :loading="clearing"
             type="button"

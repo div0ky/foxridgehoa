@@ -136,21 +136,24 @@ function previewSnippet(text: string, max = 160) {
           :key="u.id"
           class="flex flex-col gap-2 py-4 first:pt-0"
         >
-          <div class="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <p class="font-medium text-highlighted">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0">
+              <p class="break-words font-medium text-highlighted">
                 {{ u.authorDisplayName }}
               </p>
-              <p class="text-xs text-muted">
-                Posted {{ new Date(u.postedAt).toLocaleString() }}
-                · Created {{ new Date(u.createdAt).toLocaleString() }}
-                · {{ u.images.length }} image(s)
-              </p>
+              <div class="mt-1 text-xs text-muted">
+                <span class="block sm:inline">Posted {{ new Date(u.postedAt).toLocaleString() }}</span>
+                <span class="hidden sm:inline"> · </span>
+                <span class="block sm:inline">Created {{ new Date(u.createdAt).toLocaleString() }}</span>
+                <span class="hidden sm:inline"> · </span>
+                <span class="block sm:inline">{{ u.images.length }} image(s)</span>
+              </div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-col gap-2 sm:flex-row">
               <UButton
                 color="neutral"
-                size="xs"
+                class="w-full sm:w-auto"
+                size="sm"
                 variant="outline"
                 :to="`/updates/${u.id}`"
                 external
@@ -160,7 +163,8 @@ function previewSnippet(text: string, max = 160) {
               </UButton>
               <UButton
                 color="error"
-                size="xs"
+                class="w-full sm:w-auto"
+                size="sm"
                 variant="soft"
                 :loading="deletingId === u.id"
                 @click="submitDelete(u.id)"

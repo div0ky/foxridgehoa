@@ -176,6 +176,7 @@ async function submitInvite() {
           <UButton
             icon="i-lucide-send"
             label="Invite"
+            class="w-full sm:w-auto"
             type="submit"
             trailing
             :loading="submitting"
