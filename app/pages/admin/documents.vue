@@ -304,7 +304,7 @@ async function onDeleteDocument(documentId: Id<'importantDocuments'>) {
 }
 
 async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 | 1) {
-  const ids = documents.value.map(d => d.id)
+  const ids = documents.value.map((d: { id: Id<'importantDocuments'> }) => d.id)
   const idx = ids.indexOf(documentId)
   const swap = idx + direction
   if (swap < 0 || swap >= ids.length)

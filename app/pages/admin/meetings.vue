@@ -57,7 +57,7 @@ watch(
       return
     }
     const b = schedule.boardMeetings
-    boardSlots.value = b.map(t => formatForDatetimeLocal(t))
+    boardSlots.value = b.map((t: number) => formatForDatetimeLocal(t))
     annualSlot.value = formatForDatetimeLocal(schedule.annualMeeting)
   },
   { immediate: true }
