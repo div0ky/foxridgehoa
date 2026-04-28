@@ -1,8 +1,36 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+
 const colorMode = useColorMode()
 const { isAuthenticated, signOut } = useConvexAuth()
+const route = useRoute()
 
 const { banner, isVisible } = await useSiteBanner()
+
+const mobileNavOpen = ref(false)
+
+const publicNavLinks = [
+  {
+    label: 'About',
+    to: '/#about'
+  },
+  {
+    label: 'Board',
+    to: '/#board'
+  },
+  {
+    label: 'Documents',
+    to: '/#documents'
+  },
+  {
+    label: 'Helpful Links',
+    to: '/#helpful-links'
+  },
+  {
+    label: 'Updates',
+    to: '/updates'
+  }
+]
 
 function toggleTheme() {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
@@ -10,10 +38,26 @@ function toggleTheme() {
 
 const isDark = computed(() => colorMode.value === 'dark')
 
+function toggleMobileNav() {
+  mobileNavOpen.value = !mobileNavOpen.value
+}
+
+function closeMobileNav() {
+  mobileNavOpen.value = false
+}
+
 async function onSignOut() {
+  closeMobileNav()
   await signOut()
   await navigateTo('/')
 }
+
+watch(
+  () => route.fullPath,
+  () => {
+    closeMobileNav()
+  }
+)
 </script>
 
 <template>
@@ -24,52 +68,31 @@ async function onSignOut() {
     />
     <!-- M3 Expressive: Glass header with subtle backdrop blur -->
     <header class="sticky top-0 z-50 w-full border-b border-slate-200/50 bg-white/80 backdrop-blur-lg dark:border-slate-800/50 dark:bg-slate-900/80">
-      <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+      <nav class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
         <NuxtLink
           to="/"
-          class="group flex items-center gap-2"
+          class="group flex min-w-0 items-center gap-2"
+          @click="closeMobileNav"
         >
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-lg shadow-primary-500/25">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-lg shadow-primary-500/25">
             <Icon
               name="heroicons:home-modern"
               class="h-5 w-5 text-white"
             />
           </div>
-          <span class="text-lg font-bold text-slate-900 transition-colors group-hover:text-primary-600 dark:text-white dark:group-hover:text-primary-400">
+          <span class="truncate text-lg font-bold text-slate-900 transition-colors group-hover:text-primary-600 dark:text-white dark:group-hover:text-primary-400">
             Fox Ridge HOA
           </span>
         </NuxtLink>
 
-        <div class="flex items-center gap-2">
+        <div class="hidden items-center gap-2 md:flex">
           <NuxtLink
-            to="/#about"
-            class="hidden rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white sm:block"
-          >
-            About
-          </NuxtLink>
-          <NuxtLink
-            to="/#board"
-            class="hidden rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white sm:block"
-          >
-            Board
-          </NuxtLink>
-          <NuxtLink
-            to="/#documents"
-            class="hidden rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white sm:block"
-          >
-            Documents
-          </NuxtLink>
-          <NuxtLink
-            to="/#helpful-links"
+            v-for="link in publicNavLinks"
+            :key="link.to"
+            :to="link.to"
             class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
           >
-            Helpful Links
-          </NuxtLink>
-          <NuxtLink
-            to="/updates"
-            class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-          >
-            Updates
+            {{ link.label }}
           </NuxtLink>
           <M3Button
             v-if="isAuthenticated"
@@ -88,7 +111,80 @@ async function onSignOut() {
             @click="toggleTheme"
           />
         </div>
+
+        <div class="flex shrink-0 items-center gap-2 md:hidden">
+          <M3IconButton
+            :icon="isDark ? 'heroicons:sun' : 'heroicons:moon'"
+            :label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+            variant="default"
+            size="md"
+            @click="toggleTheme"
+          />
+          <M3IconButton
+            icon="heroicons:bars-3"
+            :label="mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'"
+            variant="default"
+            size="md"
+            :aria-controls="'mobile-site-navigation'"
+            :aria-expanded="mobileNavOpen"
+            @click="toggleMobileNav"
+          />
+        </div>
       </nav>
+
+      <USlideover
+        v-model:open="mobileNavOpen"
+        title="Fox Ridge HOA"
+        description="Site navigation"
+        side="right"
+        :ui="{
+          overlay: 'bg-slate-950/50 backdrop-blur-sm',
+          content: 'md:hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-white',
+          body: 'flex flex-1 flex-col p-5',
+          footer: 'border-t border-slate-200 p-5 dark:border-slate-800'
+        }"
+      >
+        <template #body>
+          <div
+            id="mobile-site-navigation"
+            class="flex flex-1 flex-col"
+          >
+            <div class="flex flex-col gap-2 rounded-3xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
+              <NuxtLink
+                v-for="link in publicNavLinks"
+                :key="link.to"
+                :to="link.to"
+                class="rounded-2xl px-4 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-primary-50 hover:text-primary-700 dark:text-slate-200 dark:hover:bg-primary-950/50 dark:hover:text-primary-300"
+                @click="closeMobileNav"
+              >
+                {{ link.label }}
+              </NuxtLink>
+            </div>
+          </div>
+        </template>
+
+        <template #footer>
+          <M3Button
+            v-if="isAuthenticated"
+            variant="secondary"
+            size="md"
+            class="w-full"
+            @click="onSignOut"
+          >
+            Sign out
+          </M3Button>
+          <M3Button
+            v-else
+            variant="ghost"
+            size="md"
+            to="/admin"
+            class="w-full"
+            @click="closeMobileNav"
+          >
+            Admin
+          </M3Button>
+        </template>
+      </USlideover>
     </header>
 
     <main class="flex-1">

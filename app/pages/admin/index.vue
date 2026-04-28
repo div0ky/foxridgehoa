@@ -84,11 +84,12 @@ const isBoard = computed(() => profile.value?.role === 'boardMember')
 
         <div
           v-if="isBoard"
-          class="mt-6 flex flex-wrap gap-3"
+          class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap"
         >
           <UButton
             color="primary"
             icon="i-lucide-files"
+            class="w-full sm:w-auto"
             label="Important Documents"
             leading
             size="lg"
@@ -97,6 +98,7 @@ const isBoard = computed(() => profile.value?.role === 'boardMember')
           <UButton
             color="neutral"
             icon="i-lucide-user-plus"
+            class="w-full sm:w-auto"
             label="Invite user"
             leading
             size="lg"

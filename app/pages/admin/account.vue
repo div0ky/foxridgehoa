@@ -280,6 +280,7 @@ async function changeAccountPassword() {
 
         <UButton
           color="primary"
+          class="w-full sm:w-auto"
           :loading="saving"
           type="submit"
         >
@@ -351,6 +352,7 @@ async function changeAccountPassword() {
         <UButton
           color="primary"
           icon="i-lucide-key-round"
+          class="w-full sm:w-auto"
           :loading="changingPassword"
           type="submit"
         >

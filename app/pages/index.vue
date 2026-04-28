@@ -132,6 +132,7 @@ function iconForImportantDoc(icon?: string) {
             size="lg"
             to="/updates"
             icon="heroicons:newspaper"
+            class="w-full sm:w-auto"
           >
             Community Updates
           </M3Button>
@@ -141,6 +142,7 @@ function iconForImportantDoc(icon?: string) {
             href="#about"
             icon="heroicons:arrow-down"
             icon-position="right"
+            class="w-full sm:w-auto"
           >
             Learn More
           </M3Button>
@@ -173,6 +175,7 @@ function iconForImportantDoc(icon?: string) {
               href="https://www.payhoa.com"
               icon="heroicons:arrow-top-right-on-square"
               icon-position="right"
+              class="w-full md:w-auto"
             >
               Go to PayHOA
             </M3Button>
@@ -302,7 +305,7 @@ function iconForImportantDoc(icon?: string) {
               class="h-6 w-6 text-primary-600 transition-colors group-hover:text-white dark:text-primary-400 dark:group-hover:text-white"
             />
           </div>
-          <h3 class="mb-2 text-xl font-semibold text-slate-900 dark:text-white">
+          <h3 class="mb-2 break-words text-xl font-semibold text-slate-900 dark:text-white">
             {{ link.title }}
           </h3>
           <p class="mb-5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
@@ -314,6 +317,7 @@ function iconForImportantDoc(icon?: string) {
             :href="link.href"
             icon="heroicons:arrow-top-right-on-square"
             icon-position="right"
+            class="w-full sm:w-auto"
           >
             {{ link.linkLabel }}
           </M3Button>
@@ -385,10 +389,10 @@ function iconForImportantDoc(icon?: string) {
               class="h-6 w-6 text-slate-500 transition-colors group-hover:text-primary-600 dark:text-slate-400 dark:group-hover:text-primary-400"
             />
           </div>
-          <h3 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
+          <h3 class="mb-2 break-words text-lg font-semibold text-slate-900 dark:text-white">
             {{ doc.title }}
           </h3>
-          <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
+          <p class="mb-4 break-words text-sm text-slate-600 dark:text-slate-400">
             {{ doc.description }}
           </p>
           <div class="flex flex-col gap-2">
@@ -403,6 +407,7 @@ function iconForImportantDoc(icon?: string) {
                 :href="file.downloadUrl"
                 icon="heroicons:arrow-down-tray"
                 icon-position="right"
+                class="w-full"
               >
                 {{ doc.files.length > 1 ? file.label : 'Download PDF' }}
               </M3Button>
@@ -435,7 +440,7 @@ function iconForImportantDoc(icon?: string) {
         >
           <div
             v-if="update.imageUrls[0]"
-            class="relative -mx-6 -mt-6 mb-4 overflow-hidden rounded-t-[var(--radius-2xl,1rem)]"
+            class="relative -mx-5 -mt-5 mb-4 overflow-hidden rounded-t-[var(--radius-2xl,1rem)] sm:-mx-6 sm:-mt-6"
           >
             <img
               :src="update.imageUrls[0]"
@@ -444,15 +449,15 @@ function iconForImportantDoc(icon?: string) {
               loading="lazy"
             >
           </div>
-          <h3 class="mb-4 line-clamp-4 text-xl font-semibold leading-snug text-slate-900 dark:text-white">
+          <h3 class="mb-4 line-clamp-4 break-words text-xl font-semibold leading-snug text-slate-900 dark:text-white">
             {{ communityUpdateHeadline(update.bodyMarkdown) }}
           </h3>
-          <div class="mb-4 flex items-center gap-2 text-xs text-slate-500">
+          <div class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <Icon
               name="heroicons:user-circle"
-              class="h-4 w-4"
+              class="h-4 w-4 shrink-0"
             />
-            <span>{{ update.authorDisplayName }}</span>
+            <span class="min-w-0 break-words">{{ update.authorDisplayName }}</span>
             <span class="text-slate-300 dark:text-slate-600">•</span>
             <time :datetime="String(update.postedAt)">
               {{
@@ -470,6 +475,7 @@ function iconForImportantDoc(icon?: string) {
             :to="`/updates/${update.id}`"
             icon="heroicons:arrow-right"
             icon-position="right"
+            class="w-full sm:w-auto"
           >
             Read More
           </M3Button>
@@ -514,33 +520,33 @@ function iconForImportantDoc(icon?: string) {
               to="/contact-the-board"
               class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft transition-all hover:shadow-soft-lg dark:bg-slate-800"
             >
-              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
+              <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon
                   name="heroicons:envelope"
                   class="h-6 w-6 text-primary-600 dark:text-primary-400"
                 />
               </div>
-              <div>
+              <div class="min-w-0">
                 <p class="text-sm text-slate-500 dark:text-slate-400">
                   Contact the Board
                 </p>
-                <p class="font-medium text-slate-900 dark:text-white">
+                <p class="break-words font-medium text-slate-900 dark:text-white">
                   Send a message
                 </p>
               </div>
             </NuxtLink>
             <div class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft dark:bg-slate-800">
-              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
+              <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon
                   name="heroicons:map-pin"
                   class="h-6 w-6 text-primary-600 dark:text-primary-400"
                 />
               </div>
-              <div>
+              <div class="min-w-0">
                 <p class="text-sm text-slate-500 dark:text-slate-400">
                   Location
                 </p>
-                <p class="font-medium text-slate-900 dark:text-white">
+                <p class="break-words font-medium text-slate-900 dark:text-white">
                   Wentzville, MO 63385
                 </p>
               </div>
@@ -589,15 +595,18 @@ function iconForImportantDoc(icon?: string) {
               <div
                 v-for="(row, index) in hoaMeetingRows"
                 :key="`${row.kind}-${row.atMs}-${index}`"
-                class="flex items-center justify-between gap-4"
+                class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                 :class="[
                   row.kind === 'annual' && 'border-t border-slate-100 pt-3 dark:border-slate-700',
                   row.isPast && 'opacity-80'
                 ]"
               >
-                <span :class="row.isPast && 'line-through'">{{ row.displayTime }}</span>
                 <span
-                  class="font-medium text-slate-900 dark:text-white"
+                  class="shrink-0"
+                  :class="row.isPast && 'line-through'"
+                >{{ row.displayTime }}</span>
+                <span
+                  class="break-words font-medium text-slate-900 dark:text-white sm:text-right"
                   :class="row.isPast && 'line-through'"
                 >{{ row.label }}</span>
               </div>

@@ -18,7 +18,7 @@ defineProps<Props>()
         class="mt-0.5 h-5 w-5 shrink-0 text-white drop-shadow-sm"
         aria-hidden="true"
       />
-      <p class="text-body-lg font-semibold text-white drop-shadow-sm">
+      <p class="break-words text-sm font-semibold leading-6 text-white drop-shadow-sm sm:text-body-lg">
         {{ body }}
       </p>
     </div>
