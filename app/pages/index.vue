@@ -64,7 +64,7 @@ const amenities = [
     title: 'Playgrounds'
   },
   {
-    description: 'Located in the highly-rated Wentzville School District',
+    description: 'Primarily in the highly-rated Wentzville School District, with parts in the Fort Zumwalt District.',
     icon: 'heroicons:academic-cap',
     title: 'Excellent Schools'
   }
@@ -79,7 +79,7 @@ const helpfulLinks = [
     title: 'Pay HOA Dues'
   },
   {
-    description: 'Request resale and closing documents through GSP Phillips.',
+    description: 'Request resale and closing documents through GS Phillips.',
     href: 'https://www.gsphillips.com/resale-documents',
     icon: 'heroicons:document-duplicate',
     linkLabel: 'Request Documents',
