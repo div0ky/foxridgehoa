@@ -282,6 +282,28 @@ export const listBoardContactSubmissions = query({
   }
 })
 
+export const deleteBoardContactSubmission = mutation({
+  args: { submissionId: v.id('boardContactSubmissions') },
+  handler: async (ctx, { submissionId }) => {
+    await requireBoardMember(ctx)
+
+    const doc = await ctx.db.get(submissionId)
+    if (!doc) {
+      return {
+        data: { deleted: false },
+        ok: true as const
+      }
+    }
+
+    await ctx.db.delete(submissionId)
+
+    return {
+      data: { deleted: true },
+      ok: true as const
+    }
+  }
+})
+
 export const getSubmissionForDelivery = internalQuery({
   args: { submissionId: v.id('boardContactSubmissions') },
   handler: async (ctx, { submissionId }) => {

@@ -50,6 +50,22 @@ test('setBoardContactRouting throws when unauthenticated', async () => {
   ).rejects.toThrow(/unauthenticated/i)
 })
 
+test('deleteBoardContactSubmission throws when unauthenticated', async () => {
+  const t = convexTest(schema, modules)
+  const { submissionId } = await t.mutation(
+    internal.boardContact.createPendingBoardContactSubmission,
+    {
+      message: 'Please remove this.',
+      streetAddress: '7 Ridge',
+      submitterName: 'Resident'
+    }
+  )
+
+  await expect(
+    t.mutation(api.boardContact.deleteBoardContactSubmission, { submissionId })
+  ).rejects.toThrow(/unauthenticated/i)
+})
+
 test('deliverBoardContactEmail marks skipped when no recipients', async () => {
   const t = convexTest(schema, modules)
 
