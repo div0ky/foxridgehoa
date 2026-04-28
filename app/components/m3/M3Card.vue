@@ -21,7 +21,7 @@ const variantClasses = {
 <template>
   <component
     :is="as"
-    class="rounded-3xl p-6 transition-all duration-300"
+    class="rounded-3xl p-5 transition-all duration-300 sm:p-6"
     :class="[variantClasses[variant], hoverable && 'card-interactive cursor-pointer']"
   >
     <slot />

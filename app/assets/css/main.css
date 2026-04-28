@@ -48,6 +48,7 @@
   }
 
   html {
+    scroll-padding-top: 6rem;
     scroll-behavior: smooth;
   }
 
@@ -61,6 +62,10 @@
     font-family: var(--font-display);
     text-wrap: balance;
     @apply text-slate-900 dark:text-white;
+  }
+
+  section[id] {
+    scroll-margin-top: 6rem;
   }
 }
 
@@ -218,16 +223,23 @@
   }
 
   .text-display-sm {
-    font-size: var(--text-display-sm);
+    font-size: clamp(1.75rem, 1.4rem + 1.2vw, var(--text-display-sm));
     line-height: 1.25;
     letter-spacing: -0.01em;
     font-weight: 600;
   }
 
   .text-display-md {
-    font-size: var(--text-display-md);
+    font-size: clamp(2.125rem, 1.55rem + 2.2vw, var(--text-display-md));
     line-height: 1.15;
     letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+
+  .text-display-lg {
+    font-size: clamp(2.75rem, 1.7rem + 4vw, var(--text-display-lg));
+    line-height: 1.1;
+    letter-spacing: -0.025em;
     font-weight: 700;
   }
 

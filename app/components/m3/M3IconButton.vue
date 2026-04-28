@@ -19,8 +19,8 @@ const variantClasses = {
 
 const sizeClasses = {
   lg: 'h-12 w-12',
-  md: 'h-10 w-10',
-  sm: 'h-8 w-8'
+  md: 'h-11 w-11',
+  sm: 'h-11 w-11'
 } as const
 </script>
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, resolveComponent } from 'vue'
+
 interface Props {
   variant?: 'primary' | 'secondary' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
@@ -8,7 +10,7 @@ interface Props {
   href?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   href: undefined,
   icon: undefined,
   iconPosition: 'left',
@@ -24,17 +26,37 @@ const variantClasses = {
 } as const
 
 const sizeClasses = {
-  lg: 'px-8 py-4 text-base gap-3',
-  md: 'px-6 py-3 text-sm gap-2',
-  sm: 'px-4 py-2 text-sm gap-2'
+  lg: 'min-h-12 px-8 py-4 text-base gap-3',
+  md: 'min-h-11 px-6 py-3 text-sm gap-2',
+  sm: 'min-h-11 px-4 py-2 text-sm gap-2'
 } as const
+
+const componentType = computed(() => {
+  if (props.to)
+    return resolveComponent('NuxtLink')
+
+  if (props.href)
+    return 'a'
+
+  return 'button'
+})
+
+const componentAttrs = computed(() => {
+  if (props.to)
+    return { to: props.to }
+
+  if (props.href)
+    return { href: props.href }
+
+  return { type: 'button' }
+})
 </script>
 
 <template>
-  <NuxtLink
-    v-if="to"
-    :to="to"
-    class="inline-flex items-center justify-center rounded-full font-semibold transition-all duration-300 focus-ring"
+  <component
+    :is="componentType"
+    v-bind="componentAttrs"
+    class="inline-flex max-w-full items-center justify-center rounded-full text-center font-semibold transition-all duration-300 focus-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
     :class="[variantClasses[variant], sizeClasses[size]]"
   >
     <Icon
@@ -50,44 +72,5 @@ const sizeClasses = {
       class="shrink-0"
       :class="{ 'h-4 w-4': size === 'sm', 'h-5 w-5': size === 'md' || size === 'lg' }"
     />
-  </NuxtLink>
-  <a
-    v-else-if="href"
-    :href="href"
-    class="inline-flex items-center justify-center rounded-full font-semibold transition-all duration-300 focus-ring"
-    :class="[variantClasses[variant], sizeClasses[size]]"
-  >
-    <Icon
-      v-if="icon && iconPosition === 'left'"
-      :name="icon"
-      class="shrink-0"
-      :class="{ 'h-4 w-4': size === 'sm', 'h-5 w-5': size === 'md' || size === 'lg' }"
-    />
-    <slot />
-    <Icon
-      v-if="icon && iconPosition === 'right'"
-      :name="icon"
-      class="shrink-0"
-      :class="{ 'h-4 w-4': size === 'sm', 'h-5 w-5': size === 'md' || size === 'lg' }"
-    />
-  </a>
-  <button
-    v-else
-    class="inline-flex items-center justify-center rounded-full font-semibold transition-all duration-300 focus-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-    :class="[variantClasses[variant], sizeClasses[size]]"
-  >
-    <Icon
-      v-if="icon && iconPosition === 'left'"
-      :name="icon"
-      class="shrink-0"
-      :class="{ 'h-4 w-4': size === 'sm', 'h-5 w-5': size === 'md' || size === 'lg' }"
-    />
-    <slot />
-    <Icon
-      v-if="icon && iconPosition === 'right'"
-      :name="icon"
-      class="shrink-0"
-      :class="{ 'h-4 w-4': size === 'sm', 'h-5 w-5': size === 'md' || size === 'lg' }"
-    />
-  </button>
+  </component>
 </template>
