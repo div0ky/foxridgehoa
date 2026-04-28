@@ -37,5 +37,30 @@ export default defineSchema({
     body: v.string(),
     showUntil: v.number(),
     updatedAt: v.number()
+  }),
+
+  boardContactRouting: defineTable({
+    recipients: v.array(
+      v.object({
+        displayName: v.string(),
+        email: v.string()
+      })
+    ),
+    updatedAt: v.number()
+  }),
+
+  boardContactSubmissions: defineTable({
+    emailDeliveryStatus: v.union(
+      v.literal('pending'),
+      v.literal('sending'),
+      v.literal('sent'),
+      v.literal('failed'),
+      v.literal('skipped_no_recipients')
+    ),
+    emailLastError: v.optional(v.string()),
+    message: v.string(),
+    resendEmailId: v.optional(v.string()),
+    streetAddress: v.string(),
+    submitterName: v.string()
   })
 })

@@ -13,6 +13,7 @@ import type * as admin_invite from "../admin/invite.js";
 import type * as admin_provisioning from "../admin/provisioning.js";
 import type * as auth from "../auth.js";
 import type * as authz_requireBoardMember from "../authz/requireBoardMember.js";
+import type * as boardContact from "../boardContact.js";
 import type * as bootstrapFirst from "../bootstrapFirst.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   "admin/provisioning": typeof admin_provisioning;
   auth: typeof auth;
   "authz/requireBoardMember": typeof authz_requireBoardMember;
+  boardContact: typeof boardContact;
   bootstrapFirst: typeof bootstrapFirst;
   crons: typeof crons;
   http: typeof http;
