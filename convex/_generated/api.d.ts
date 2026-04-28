@@ -15,6 +15,7 @@ import type * as auth from "../auth.js";
 import type * as authz_requireBoardMember from "../authz/requireBoardMember.js";
 import type * as boardContact from "../boardContact.js";
 import type * as bootstrapFirst from "../bootstrapFirst.js";
+import type * as communityUpdates from "../communityUpdates.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as importantDocuments from "../importantDocuments.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   "authz/requireBoardMember": typeof authz_requireBoardMember;
   boardContact: typeof boardContact;
   bootstrapFirst: typeof bootstrapFirst;
+  communityUpdates: typeof communityUpdates;
   crons: typeof crons;
   http: typeof http;
   importantDocuments: typeof importantDocuments;

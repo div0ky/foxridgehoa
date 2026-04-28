@@ -62,7 +62,7 @@ async function onSubmit() {
         Admin sign in
       </h1>
       <p class="mb-8 text-sm text-slate-600 dark:text-slate-400">
-        Board and site administrators only. There is no self-service sign-up.
+        Board and site administrators only.
       </p>
 
       <form

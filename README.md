@@ -21,11 +21,11 @@ foxridgehoa/
 │   │   └── default.vue   # Main layout with header/footer
 │   └── pages/
 │       ├── index.vue     # Homepage
-│       └── posts/        # Community posts
+│       └── updates/      # Community updates listing & detail
 ├── content/
 │   ├── index.md          # Homepage content
 │   ├── about.md          # About page
-│   └── posts/            # Blog posts (Markdown)
+│   └── updates/          # Updates (Markdown)
 └── public/               # Static assets
 ```
 
@@ -68,13 +68,13 @@ bun run preview
 
 ## Content Management
 
-### Adding Posts
+### Adding Updates
 
-Create a new Markdown file in `content/posts/`:
+Create a new Markdown file in `content/updates/`:
 
 ```markdown
 ---
-title: Your Post Title
+title: Your Update Title
 description: A brief description
 date: 2025-01-15
 ---

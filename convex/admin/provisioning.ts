@@ -1,13 +1,11 @@
-import { ConvexError } from 'convex/values'
-
+import type { Id, Doc } from '../_generated/dataModel'
+import type { MutationCtx } from '../_generated/server'
+import type { operatorRole } from '../schema'
 import type { Infer } from 'convex/values'
 
-import type { Id } from '../_generated/dataModel'
-import type { Doc } from '../_generated/dataModel'
-import type { MutationCtx } from '../_generated/server'
+import { ConvexError } from 'convex/values'
 
 import { authComponent, createAuthForProvisioning } from '../auth'
-import { operatorRole } from '../schema'
 
 type SignUpUser = { email?: string, id: string, name?: string }
 
@@ -54,9 +52,9 @@ export async function signUpAndInsertOperatorProfile(params: {
       body: {
         email: email.trim().toLowerCase(),
         name: name.trim(),
-        password,
+        password
       },
-      headers,
+      headers
     })
     const user = await parseSignUpResult(raw)
     const authUserId = user.id
@@ -71,10 +69,9 @@ export async function signUpAndInsertOperatorProfile(params: {
     if (!existingProfile) {
       profileId = await ctx.db.insert('operatorProfiles', {
         authUserId,
-        role,
+        role
       })
-    }
-    else {
+    } else {
       profileId = existingProfile._id
       await ctx.db.patch(existingProfile._id, { role })
     }
@@ -83,12 +80,11 @@ export async function signUpAndInsertOperatorProfile(params: {
       data: {
         authUserId,
         operatorProfileId: profileId,
-        userEmail: user.email ?? email.trim(),
+        userEmail: user.email ?? email.trim()
       },
-      ok: true,
+      ok: true
     }
-  }
-  catch (error) {
+  } catch (error) {
     if (error instanceof ConvexError)
       throw error
     const msg = error instanceof Error ? error.message : 'Sign-up failed.'

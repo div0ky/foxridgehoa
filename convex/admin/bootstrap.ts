@@ -1,4 +1,4 @@
-import { ConvexError, v  } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 
 import { internalMutation } from '../_generated/server'
 import { signUpAndInsertOperatorProfile } from './provisioning'
@@ -8,7 +8,7 @@ export const bootstrapFirstOperator = internalMutation({
     bootstrapSecret: v.string(),
     email: v.string(),
     name: v.string(),
-    password: v.string(),
+    password: v.string()
   },
   handler: async (ctx, args) => {
     const configured = process.env.OPERATOR_BOOTSTRAP_SECRET
@@ -24,7 +24,7 @@ export const bootstrapFirstOperator = internalMutation({
       email: args.email,
       name: args.name,
       password: args.password,
-      role: 'boardMember',
+      role: 'boardMember'
     })
-  },
+  }
 })
