@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Id } from '~~/convex/_generated/dataModel'
+
 import { computed, ref, watch } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
@@ -33,6 +35,16 @@ const loadingRouting = computed(() => {
 interface RecipientRow {
   displayName: string
   email: string
+}
+
+interface SubmissionRow {
+  createdAt: number
+  emailDeliveryStatus: string
+  emailLastError?: string
+  message: string
+  streetAddress: string
+  submissionId: Id<'boardContactSubmissions'>
+  submitterName: string
 }
 
 const recipientRows = ref<RecipientRow[]>([{ displayName: '', email: '' }])
@@ -144,8 +156,14 @@ const submissionContinueCursor = computed(
   () => submissionsState.data.value?.data.continueCursor ?? null
 )
 
-const accumulatedSubmissions = ref<typeof submissionPage.value>([])
+const accumulatedSubmissions = ref<SubmissionRow[]>([])
 const listInitialized = ref(false)
+const viewedSubmission = ref<SubmissionRow | null>(null)
+const messageModalOpen = ref(false)
+const submissionPendingDeletion = ref<SubmissionRow | null>(null)
+const deleteModalOpen = ref(false)
+const deletingSubmissionId = ref<Id<'boardContactSubmissions'> | null>(null)
+const deleteSubmission = useConvexMutation(api.boardContact.deleteBoardContactSubmission)
 
 watch(
   () =>
@@ -201,6 +219,57 @@ function refreshSubmissionList() {
   paginationOpts.value = { cursor: null, numItems: PAGE_SIZE }
 }
 
+function previewMessage(message: string): string {
+  const compact = message.replace(/\s+/g, ' ').trim()
+  return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact
+}
+
+function openMessageModal(row: SubmissionRow) {
+  viewedSubmission.value = row
+  messageModalOpen.value = true
+}
+
+function openDeleteModal(row: SubmissionRow) {
+  submissionPendingDeletion.value = row
+  deleteModalOpen.value = true
+}
+
+async function confirmDeleteSubmission() {
+  const row = submissionPendingDeletion.value
+  if (!row)
+    return
+
+  deletingSubmissionId.value = row.submissionId
+  try {
+    await deleteSubmission.execute({ submissionId: row.submissionId })
+    accumulatedSubmissions.value = accumulatedSubmissions.value.filter(
+      submission => submission.submissionId !== row.submissionId
+    )
+
+    if (viewedSubmission.value?.submissionId === row.submissionId) {
+      viewedSubmission.value = null
+      messageModalOpen.value = false
+    }
+
+    toast.add({
+      color: 'success',
+      description: 'The contact submission was deleted.',
+      title: 'Submission deleted'
+    })
+    deleteModalOpen.value = false
+    submissionPendingDeletion.value = null
+  } catch (error) {
+    const description = error instanceof Error ? error.message : 'Delete failed.'
+    toast.add({
+      color: 'error',
+      description,
+      title: 'Could not delete'
+    })
+  } finally {
+    deletingSubmissionId.value = null
+  }
+}
+
 function formatWhen(ms: number): string {
   return new Date(ms).toLocaleString('en-US', {
     dateStyle: 'medium',
@@ -232,7 +301,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
     return ''
 
   if (raw === 'ERR_MISSING_RESEND_ENV') {
-    return 'Convex env incomplete: set RESEND_API_KEY, RESEND_FROM, and RESEND_TO on this deployment.'
+    return 'Convex env incomplete: set RESEND_API_KEY and RESEND_FROM on this deployment.'
   }
 
   if (raw === 'ERR_RESEND_NETWORK')
@@ -264,7 +333,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               Board contact — email recipients
             </h1>
             <p class="mt-1 text-sm text-muted">
-              When a resident submits the public form, each person listed here receives the message by email (via Resend). Use a verified sender domain in Convex (<code class="text-xs">RESEND_FROM</code>, <code class="text-xs">RESEND_TO</code>, <code class="text-xs">RESEND_API_KEY</code>).
+              When a resident submits the public form, each person listed here receives the message as a direct email recipient (via Resend). Use a verified sender domain in Convex (<code class="text-xs">RESEND_FROM</code>, <code class="text-xs">RESEND_API_KEY</code>).
             </p>
           </div>
         </template>
@@ -349,7 +418,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                 Contact submissions
               </h2>
               <p class="mt-1 text-sm text-muted">
-                Read-only log of messages from the public form (newest first in each batch).
+                Review, open, and delete messages from the public form (newest first in each batch).
               </p>
             </div>
             <UButton
@@ -403,6 +472,9 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                   <th class="px-3 py-2 font-medium text-muted">
                     Message
                   </th>
+                  <th class="px-3 py-2 font-medium text-muted">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -434,8 +506,35 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                   <td class="max-w-[140px] px-3 py-2 align-top break-words">
                     {{ row.streetAddress }}
                   </td>
-                  <td class="max-w-[280px] px-3 py-2 align-top break-words whitespace-pre-wrap">
-                    {{ row.message }}
+                  <td class="max-w-[280px] px-3 py-2 align-top">
+                    <div class="space-y-2">
+                      <p class="line-clamp-3 break-words text-muted">
+                        {{ previewMessage(row.message) }}
+                      </p>
+                      <UButton
+                        color="neutral"
+                        icon="i-lucide-eye"
+                        size="xs"
+                        type="button"
+                        variant="subtle"
+                        @click="openMessageModal(row)"
+                      >
+                        Read message
+                      </UButton>
+                    </div>
+                  </td>
+                  <td class="px-3 py-2 align-top">
+                    <UButton
+                      color="error"
+                      icon="i-lucide-trash-2"
+                      :loading="deletingSubmissionId === row.submissionId"
+                      size="xs"
+                      type="button"
+                      variant="soft"
+                      @click="openDeleteModal(row)"
+                    >
+                      Delete
+                    </UButton>
                   </td>
                 </tr>
               </tbody>
@@ -455,6 +554,84 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
           </UButton>
         </div>
       </UCard>
+
+      <UModal
+        v-model:open="messageModalOpen"
+        scrollable
+        title="Contact submission"
+        :description="viewedSubmission ? `${viewedSubmission.submitterName} · ${formatWhen(viewedSubmission.createdAt)}` : undefined"
+        :ui="{ content: 'sm:max-w-2xl' }"
+      >
+        <template #body>
+          <div
+            v-if="viewedSubmission"
+            class="space-y-5"
+          >
+            <dl class="grid gap-4 text-sm sm:grid-cols-2">
+              <div>
+                <dt class="font-medium text-muted">
+                  Name
+                </dt>
+                <dd class="mt-1 text-highlighted">
+                  {{ viewedSubmission.submitterName }}
+                </dd>
+              </div>
+              <div>
+                <dt class="font-medium text-muted">
+                  Address
+                </dt>
+                <dd class="mt-1 text-highlighted">
+                  {{ viewedSubmission.streetAddress }}
+                </dd>
+              </div>
+            </dl>
+
+            <div>
+              <p class="text-sm font-medium text-muted">
+                Message
+              </p>
+              <div class="mt-2 max-h-[60vh] overflow-auto rounded-lg border border-default bg-muted/20 p-4 text-sm leading-6 whitespace-pre-wrap text-highlighted">
+                {{ viewedSubmission.message }}
+              </div>
+            </div>
+          </div>
+        </template>
+      </UModal>
+
+      <UModal
+        v-model:open="deleteModalOpen"
+        title="Delete submission?"
+        :description="submissionPendingDeletion ? `This permanently removes the message from ${submissionPendingDeletion.submitterName}.` : undefined"
+      >
+        <template #body>
+          <p class="text-sm text-muted">
+            This cannot be undone. The saved submission will disappear from the admin log, but any email already sent to board recipients will not be recalled.
+          </p>
+        </template>
+
+        <template #footer>
+          <div class="flex w-full justify-end gap-3">
+            <UButton
+              color="neutral"
+              :disabled="deletingSubmissionId !== null"
+              type="button"
+              variant="outline"
+              @click="deleteModalOpen = false"
+            >
+              Cancel
+            </UButton>
+            <UButton
+              color="error"
+              icon="i-lucide-trash-2"
+              :loading="deletingSubmissionId !== null"
+              type="button"
+              @click="confirmDeleteSubmission"
+            >
+              Delete submission
+            </UButton>
+          </div>
+        </template>
+      </UModal>
     </template>
   </div>
 </template>
