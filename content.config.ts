@@ -6,7 +6,7 @@ export default defineContentConfig({
       source: '**',
       type: 'page'
     }),
-    posts: defineCollection({
+    updates: defineCollection({
       schema: z.object({
         author: z.string(),
         description: z.string(),
@@ -15,7 +15,7 @@ export default defineContentConfig({
         tags: z.array(z.string()).optional(),
         title: z.string()
       }),
-      source: 'posts/**',
+      source: 'updates/**',
       type: 'page'
     })
   }

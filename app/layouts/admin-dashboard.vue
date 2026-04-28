@@ -23,6 +23,14 @@ const primaryLinks = computed<NavigationMenuItem[]>(() => {
         sidebarOpen.value = false
       },
       to: '/admin'
+    },
+    {
+      icon: 'i-lucide-user',
+      label: 'Account',
+      onSelect: () => {
+        sidebarOpen.value = false
+      },
+      to: '/admin/account'
     }
   ]
 
@@ -42,6 +50,14 @@ const primaryLinks = computed<NavigationMenuItem[]>(() => {
         sidebarOpen.value = false
       },
       to: '/admin/banner'
+    })
+    items.push({
+      icon: 'i-lucide-rss',
+      label: 'Community updates',
+      onSelect: () => {
+        sidebarOpen.value = false
+      },
+      to: '/admin/quick-updates'
     })
     items.push({
       icon: 'i-lucide-calendar',
@@ -86,10 +102,14 @@ const exitAdminNavItems = computed<NavigationMenuItem[]>(() => [
 const adminTitle = computed(() => {
   if (route.path === '/admin')
     return 'Overview'
+  if (route.path === '/admin/account')
+    return 'Account'
   if (route.path === '/admin/documents')
     return 'Important Documents'
   if (route.path === '/admin/banner')
     return 'Site banner'
+  if (route.path === '/admin/quick-updates')
+    return 'Community updates'
   if (route.path === '/admin/meetings')
     return 'HOA meetings'
   if (route.path === '/admin/contact-routing')

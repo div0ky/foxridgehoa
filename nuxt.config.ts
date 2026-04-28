@@ -2,9 +2,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
 
-  ssr: false,
-
   modules: [
+    '@comark/nuxt',
     '@nuxt/fonts',
     '@nuxt/eslint',
     '@vueuse/nuxt',
@@ -15,6 +14,7 @@ export default defineNuxtConfig({
     '@nuxtjs/color-mode',
     'better-convex-nuxt'
   ],
+  ssr: false,
 
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],

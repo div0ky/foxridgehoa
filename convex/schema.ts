@@ -12,7 +12,48 @@ const importantDocumentFileEntry = v.object({
   storageId: v.id('_storage')
 })
 
+const communityUpdateImageEntry = v.object({
+  storageId: v.id('_storage')
+})
+
 export default defineSchema({
+  boardContactRouting: defineTable({
+    recipients: v.array(
+      v.object({
+        displayName: v.string(),
+        email: v.string()
+      })
+    ),
+    updatedAt: v.number()
+  }),
+
+  boardContactSubmissions: defineTable({
+    emailDeliveryStatus: v.union(
+      v.literal('pending'),
+      v.literal('sending'),
+      v.literal('sent'),
+      v.literal('failed'),
+      v.literal('skipped_no_recipients')
+    ),
+    emailLastError: v.optional(v.string()),
+    message: v.string(),
+    resendEmailId: v.optional(v.string()),
+    streetAddress: v.string(),
+    submitterName: v.string()
+  }),
+
+  communityUpdates: defineTable({
+    authorDisplayName: v.string(),
+    bodyMarkdown: v.string(),
+    createdAt: v.number(),
+    images: v.array(communityUpdateImageEntry),
+    postedAt: v.optional(v.number()),
+    postedByAuthUserId: v.string(),
+    updatedAt: v.number()
+  })
+    .index('by_createdAt', ['createdAt'])
+    .index('by_postedAt', ['postedAt']),
+
   importantDocuments: defineTable({
     description: v.string(),
     files: v.array(importantDocumentFileEntry),
@@ -37,30 +78,5 @@ export default defineSchema({
     body: v.string(),
     showUntil: v.number(),
     updatedAt: v.number()
-  }),
-
-  boardContactRouting: defineTable({
-    recipients: v.array(
-      v.object({
-        displayName: v.string(),
-        email: v.string()
-      })
-    ),
-    updatedAt: v.number()
-  }),
-
-  boardContactSubmissions: defineTable({
-    emailDeliveryStatus: v.union(
-      v.literal('pending'),
-      v.literal('sending'),
-      v.literal('sent'),
-      v.literal('failed'),
-      v.literal('skipped_no_recipients')
-    ),
-    emailLastError: v.optional(v.string()),
-    message: v.string(),
-    resendEmailId: v.optional(v.string()),
-    streetAddress: v.string(),
-    submitterName: v.string()
   })
 })

@@ -66,16 +66,10 @@ async function onSignOut() {
             Helpful Links
           </NuxtLink>
           <NuxtLink
-            to="/posts"
+            to="/updates"
             class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
           >
-            Posts
-          </NuxtLink>
-          <NuxtLink
-            to="/admin"
-            class="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-          >
-            Admin
+            Updates
           </NuxtLink>
           <M3Button
             v-if="isAuthenticated"
@@ -173,10 +167,10 @@ async function onSignOut() {
             <ul class="mt-4 space-y-3">
               <li>
                 <NuxtLink
-                  to="/posts"
+                  to="/updates"
                   class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
                 >
-                  Community Posts
+                  Community Updates
                 </NuxtLink>
               </li>
               <li>
@@ -228,6 +222,13 @@ async function onSignOut() {
             © {{ new Date().getFullYear() }} Fox Ridge HOA. All rights reserved.
           </p>
           <div class="flex items-center gap-2 text-sm text-slate-500">
+            <NuxtLink
+              to="/admin"
+              class="text-xs text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-400"
+            >
+              Admin
+            </NuxtLink>
+            <span class="text-slate-300 dark:text-slate-700">•</span>
             <span>Made with</span>
             <Icon
               name="heroicons:heart-solid"

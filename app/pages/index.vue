@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { defaultImportantDocumentIcon } from '~/config/important-document-icons'
+import { communityUpdateHeadline } from '~/utils/communityUpdateExcerpt'
 
 const { documents, isPending: importantDocumentsPending } = await useImportantDocuments()
 
@@ -16,11 +17,13 @@ const showImportantDocuments = computed(
   () => !importantDocumentsPending.value && documents.value.length > 0
 )
 
-const { data: posts } = await useAsyncData('recent-posts', () =>
-  queryCollection('posts')
-    .order('publishedAt', 'DESC')
-    .limit(3)
-    .all()
+const {
+  isPending: communityUpdatesPending,
+  updates: recentCommunityUpdates
+} = await usePublicCommunityUpdates(3)
+
+const showCommunityUpdatesTeaser = computed(
+  () => !communityUpdatesPending.value && recentCommunityUpdates.value.length > 0
 )
 
 const currentMonth = new Date().getMonth()
@@ -127,7 +130,7 @@ function iconForImportantDoc(icon?: string) {
           <M3Button
             variant="primary"
             size="lg"
-            to="/posts"
+            to="/updates"
             icon="heroicons:newspaper"
           >
             Community Updates
@@ -409,58 +412,62 @@ function iconForImportantDoc(icon?: string) {
       </div>
     </M3Section>
 
-    <!-- Recent Posts Preview -->
+    <!-- Recent updates preview -->
     <M3Section
-      v-if="posts && posts.length > 0"
-      id="posts"
+      v-if="showCommunityUpdatesTeaser"
+      id="updates"
       background="default"
       padding="lg"
     >
       <M3SectionHeader
         label="Stay Informed"
-        title="Community Updates"
-        description="The latest news, meeting summaries, and announcements from the HOA board."
+        title="Recent Posts"
+        description="Updates and reminders from the board."
         size="md"
       />
       <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
         <M3Card
-          v-for="post in posts"
-          :key="post.path"
+          v-for="update in recentCommunityUpdates"
+          :key="update.id"
           variant="elevated"
           hoverable
           as="article"
         >
-          <div class="mb-4 flex flex-wrap gap-2">
-            <M3Badge
-              v-for="tag in post.tags"
-              :key="tag"
-              variant="muted"
-              size="sm"
+          <div
+            v-if="update.imageUrls[0]"
+            class="relative -mx-6 -mt-6 mb-4 overflow-hidden rounded-t-[var(--radius-2xl,1rem)]"
+          >
+            <img
+              :src="update.imageUrls[0]"
+              alt=""
+              class="h-36 w-full object-cover"
+              loading="lazy"
             >
-              {{ tag }}
-            </M3Badge>
           </div>
-          <h3 class="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
-            {{ post.title }}
+          <h3 class="mb-4 line-clamp-4 text-xl font-semibold leading-snug text-slate-900 dark:text-white">
+            {{ communityUpdateHeadline(update.bodyMarkdown) }}
           </h3>
-          <p class="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            {{ post.description }}
-          </p>
           <div class="mb-4 flex items-center gap-2 text-xs text-slate-500">
             <Icon
               name="heroicons:user-circle"
               class="h-4 w-4"
             />
-            <span>{{ post.author }}</span>
+            <span>{{ update.authorDisplayName }}</span>
             <span class="text-slate-300 dark:text-slate-600">•</span>
-            <time :datetime="post.publishedAt">
-              {{ new Date(post.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
+            <time :datetime="String(update.postedAt)">
+              {{
+                new Date(update.postedAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                })
+              }}
             </time>
           </div>
           <M3Button
             variant="ghost"
             size="sm"
-            :to="post.path"
+            :to="`/updates/${update.id}`"
             icon="heroicons:arrow-right"
             icon-position="right"
           >
@@ -472,10 +479,10 @@ function iconForImportantDoc(icon?: string) {
         <M3Button
           variant="secondary"
           size="md"
-          to="/posts"
+          to="/updates"
           icon="heroicons:newspaper"
         >
-          View All Posts
+          View more
         </M3Button>
       </div>
     </M3Section>
