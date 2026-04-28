@@ -503,8 +503,8 @@ function iconForImportantDoc(icon?: string) {
           </p>
 
           <div class="space-y-4">
-            <a
-              href="mailto:info@thefoxridgehoa.org"
+            <NuxtLink
+              to="/contact-the-board"
               class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft transition-all hover:shadow-soft-lg dark:bg-slate-800"
             >
               <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
@@ -514,10 +514,14 @@ function iconForImportantDoc(icon?: string) {
                 />
               </div>
               <div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">Email Us</p>
-                <p class="font-medium text-slate-900 dark:text-white">info@thefoxridgehoa.org</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">
+                  Contact the Board
+                </p>
+                <p class="font-medium text-slate-900 dark:text-white">
+                  Send a message
+                </p>
               </div>
-            </a>
+            </NuxtLink>
             <div class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft dark:bg-slate-800">
               <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon

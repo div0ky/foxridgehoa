@@ -196,12 +196,12 @@ async function onSignOut() {
                 </a>
               </li>
               <li>
-                <a
-                  href="/#contact"
+                <NuxtLink
+                  to="/contact-the-board"
                   class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
                 >
-                  Contact Us
-                </a>
+                  Contact the Board
+                </NuxtLink>
               </li>
             </ul>
           </div>
@@ -213,12 +213,12 @@ async function onSignOut() {
             </h3>
             <div class="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-400">
               <p>Wentzville, MO 63385</p>
-              <a
-                href="mailto:info@thefoxridgehoa.org"
+              <NuxtLink
+                to="/contact-the-board"
                 class="block transition-colors hover:text-primary-600 dark:hover:text-primary-400"
               >
-                info@thefoxridgehoa.org
-              </a>
+                Contact the Board
+              </NuxtLink>
             </div>
           </div>
         </div>

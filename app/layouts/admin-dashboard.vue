@@ -52,6 +52,14 @@ const primaryLinks = computed<NavigationMenuItem[]>(() => {
       to: '/admin/meetings'
     })
     items.push({
+      icon: 'i-lucide-mail',
+      label: 'Board contact',
+      onSelect: () => {
+        sidebarOpen.value = false
+      },
+      to: '/admin/contact-routing'
+    })
+    items.push({
       icon: 'i-lucide-user-plus',
       label: 'Invite user',
       onSelect: () => {
@@ -84,6 +92,8 @@ const adminTitle = computed(() => {
     return 'Site banner'
   if (route.path === '/admin/meetings')
     return 'HOA meetings'
+  if (route.path === '/admin/contact-routing')
+    return 'Board contact'
   if (route.path === '/admin/invite')
     return 'Invite user'
   return 'Admin'
