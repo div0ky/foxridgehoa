@@ -1,5 +1,10 @@
 /* eslint-disable perfectionist/sort-objects -- nuxt/nuxt-config-keys-order enforces canonical key order */
 // https://nuxt.com/docs/api/configuration/nuxt-config
+
+function withoutTrailingSlash(url: string | undefined): string | undefined {
+  return url?.replace(/\/+$/, '')
+}
+
 export default defineNuxtConfig({
 
   modules: [
@@ -26,7 +31,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-07-11',
 
   nitro: {
-    preset: 'vercel-static'
+    preset: 'vercel'
   },
   vite: {
     optimizeDeps: {
@@ -47,9 +52,11 @@ export default defineNuxtConfig({
       }
     },
     siteUrl:
-      process.env.NUXT_PUBLIC_CONVEX_SITE_URL
-      ?? process.env.CONVEX_SITE_URL,
-    url: process.env.NUXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL
+      withoutTrailingSlash(process.env.NUXT_PUBLIC_CONVEX_SITE_URL)
+      ?? withoutTrailingSlash(process.env.CONVEX_SITE_URL),
+    url:
+      withoutTrailingSlash(process.env.NUXT_PUBLIC_CONVEX_URL)
+      ?? withoutTrailingSlash(process.env.CONVEX_URL)
   },
 
   eslint: {
