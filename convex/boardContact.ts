@@ -388,7 +388,7 @@ export const deliverBoardContactEmail = internalAction({
     }
 
     const routing = await ctx.runQuery(internal.boardContact.getRoutingConfig, {})
-    const bccEmails = [
+    const recipientEmails = [
       ...new Set(
         routing.recipients
           .map((r: { displayName: string, email: string }) => r.email.trim().toLowerCase())
@@ -396,7 +396,7 @@ export const deliverBoardContactEmail = internalAction({
       )
     ]
 
-    if (bccEmails.length === 0) {
+    if (recipientEmails.length === 0) {
       await ctx.runMutation(internal.boardContact.markDeliverySkipped, { submissionId })
       return
     }
@@ -417,9 +417,8 @@ export const deliverBoardContactEmail = internalAction({
 
     const apiKey = process.env.RESEND_API_KEY
     const from = process.env.RESEND_FROM
-    const to = process.env.RESEND_TO
 
-    if (!apiKey || !from || !to) {
+    if (!apiKey || !from) {
       await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
         error: 'ERR_MISSING_RESEND_ENV',
         submissionId
@@ -433,11 +432,10 @@ export const deliverBoardContactEmail = internalAction({
     try {
       const res = await fetch('https://api.resend.com/emails', {
         body: JSON.stringify({
-          bcc: bccEmails,
           from,
           subject,
           text,
-          to: [to]
+          to: recipientEmails
         }),
         headers: {
           'Authorization': `Bearer ${apiKey}`,

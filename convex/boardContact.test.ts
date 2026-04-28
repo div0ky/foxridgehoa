@@ -99,7 +99,6 @@ test('submitBoardContactMessage sends via Resend when configured', async () => {
   try {
     process.env.RESEND_API_KEY = 'test_key'
     process.env.RESEND_FROM = 'Fox <from@test.com>'
-    process.env.RESEND_TO = 'inbox@test.com'
 
     const result = await t.action(api.boardContact.submitBoardContactMessage, {
       message: 'Hi board',
@@ -109,6 +108,10 @@ test('submitBoardContactMessage sends via Resend when configured', async () => {
 
     expect(result.ok).toBe(true)
     expect(fetchMock).toHaveBeenCalled()
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      from: 'Fox <from@test.com>',
+      to: ['dir@example.com', 'other@example.com']
+    })
 
     const row = await t.run(async (ctx) => {
       const rows = await ctx.db.query('boardContactSubmissions').collect()
@@ -122,7 +125,6 @@ test('submitBoardContactMessage sends via Resend when configured', async () => {
     globalThis.fetch = prevFetch
     delete process.env.RESEND_API_KEY
     delete process.env.RESEND_FROM
-    delete process.env.RESEND_TO
   }
 })
 
@@ -161,7 +163,6 @@ test('deliverBoardContactEmail sends via Resend and marks sent', async () => {
   try {
     process.env.RESEND_API_KEY = 'test_key'
     process.env.RESEND_FROM = 'Fox <from@test.com>'
-    process.env.RESEND_TO = 'inbox@test.com'
 
     await t.action(internal.boardContact.deliverBoardContactEmail, {
       submissionId
@@ -174,12 +175,15 @@ test('deliverBoardContactEmail sends via Resend and marks sent', async () => {
     expect(row?.emailDeliveryStatus).toBe('sent')
     expect(row?.resendEmailId).toBe('re_456')
     expect(fetchMock).toHaveBeenCalled()
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      from: 'Fox <from@test.com>',
+      to: ['dir@example.com', 'other@example.com']
+    })
   } finally {
     vi.unstubAllGlobals()
     globalThis.fetch = prevFetch
     delete process.env.RESEND_API_KEY
     delete process.env.RESEND_FROM
-    delete process.env.RESEND_TO
   }
 })
 
@@ -216,7 +220,6 @@ test('deliverBoardContactEmail marks failed when Resend returns error', async ()
   try {
     process.env.RESEND_API_KEY = 'test_key'
     process.env.RESEND_FROM = 'Fox <from@test.com>'
-    process.env.RESEND_TO = 'inbox@test.com'
 
     await t.action(internal.boardContact.deliverBoardContactEmail, {
       submissionId
@@ -232,7 +235,6 @@ test('deliverBoardContactEmail marks failed when Resend returns error', async ()
     vi.unstubAllGlobals()
     delete process.env.RESEND_API_KEY
     delete process.env.RESEND_FROM
-    delete process.env.RESEND_TO
   }
 })
 
@@ -260,7 +262,6 @@ test('submitBoardContactMessage throws when Resend returns error', async () => {
   try {
     process.env.RESEND_API_KEY = 'test_key'
     process.env.RESEND_FROM = 'Fox <from@test.com>'
-    process.env.RESEND_TO = 'inbox@test.com'
 
     await expect(
       t.action(api.boardContact.submitBoardContactMessage, {
@@ -280,6 +281,5 @@ test('submitBoardContactMessage throws when Resend returns error', async () => {
     vi.unstubAllGlobals()
     delete process.env.RESEND_API_KEY
     delete process.env.RESEND_FROM
-    delete process.env.RESEND_TO
   }
 })

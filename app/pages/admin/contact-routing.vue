@@ -232,7 +232,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
     return ''
 
   if (raw === 'ERR_MISSING_RESEND_ENV') {
-    return 'Convex env incomplete: set RESEND_API_KEY, RESEND_FROM, and RESEND_TO on this deployment.'
+    return 'Convex env incomplete: set RESEND_API_KEY and RESEND_FROM on this deployment.'
   }
 
   if (raw === 'ERR_RESEND_NETWORK')
@@ -264,7 +264,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               Board contact — email recipients
             </h1>
             <p class="mt-1 text-sm text-muted">
-              When a resident submits the public form, each person listed here receives the message by email (via Resend). Use a verified sender domain in Convex (<code class="text-xs">RESEND_FROM</code>, <code class="text-xs">RESEND_TO</code>, <code class="text-xs">RESEND_API_KEY</code>).
+              When a resident submits the public form, each person listed here receives the message as a direct email recipient (via Resend). Use a verified sender domain in Convex (<code class="text-xs">RESEND_FROM</code>, <code class="text-xs">RESEND_API_KEY</code>).
             </p>
           </div>
         </template>
