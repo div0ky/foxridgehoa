@@ -183,7 +183,7 @@ watch(
       accumulatedSubmissions.value = [...accumulatedSubmissions.value, ...page]
     }
   },
-  { deep: true }
+  { deep: true, immediate: true }
 )
 
 watch(isBoardMember, (board) => {
