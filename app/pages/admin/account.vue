@@ -29,21 +29,34 @@ const operatorProfile = computed(() => profileState.data.value?.data.profile ?? 
 
 const { client, refreshAuth } = useConvexAuth()
 
-/** Better Auth exposes `POST /update-user` via `updateUser` on the client. */
-type AuthClientProfile = {
+type AuthClientResult = Promise<{
+  data?: unknown
+  error?: { message?: string } | null
+}>
+
+/** Better Auth exposes account settings through generated client helpers. */
+type AuthClientAccount = {
+  changePassword?: (
+    opts: {
+      currentPassword: string
+      newPassword: string
+      revokeOtherSessions?: boolean
+    },
+    opts2?: Record<string, unknown>
+  ) => AuthClientResult
   updateUser?: (
     opts: {
       image?: string
       name?: string
     },
     opts2?: Record<string, unknown>
-  ) => Promise<{
-    data?: unknown
-    error?: { message?: string } | null
-  }>
+  ) => AuthClientResult
 }
 
 const displayNameDraft = ref('')
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
 
 watch(
   convexUser,
@@ -54,6 +67,19 @@ watch(
 )
 
 const saving = ref(false)
+const changingPassword = ref(false)
+
+function authResultMessage(
+  result: Awaited<AuthClientResult> | undefined,
+  fallback: string
+): string | null {
+  if (!result?.error)
+    return null
+
+  return typeof result.error.message === 'string'
+    ? result.error.message
+    : fallback
+}
 
 async function saveDisplayName() {
   const trimmed = displayNameDraft.value.trim()
@@ -75,7 +101,7 @@ async function saveDisplayName() {
     return
   }
 
-  const updater = (client as AuthClientProfile).updateUser
+  const updater = (client as AuthClientAccount).updateUser
   if (typeof updater !== 'function') {
     toast.add({
       color: 'error',
@@ -88,13 +114,8 @@ async function saveDisplayName() {
   saving.value = true
   try {
     const result = await updater({ name: trimmed })
-
-    if (result?.error) {
-      const msg
-        = typeof result.error === 'object' && result.error && 'message' in result.error
-          && typeof (result.error as { message?: unknown }).message === 'string'
-          ? (result.error as { message: string }).message
-          : 'Could not save display name.'
+    const msg = authResultMessage(result, 'Could not save display name.')
+    if (msg) {
       toast.add({ color: 'error', description: msg, title: 'Update failed' })
       return
     }
@@ -116,10 +137,91 @@ async function saveDisplayName() {
     saving.value = false
   }
 }
+
+async function changeAccountPassword() {
+  if (!currentPassword.value || !newPassword.value || !confirmPassword.value) {
+    toast.add({
+      color: 'warning',
+      description: 'Enter your current password and the new password twice.',
+      title: 'Required'
+    })
+    return
+  }
+
+  if (newPassword.value.length < 8) {
+    toast.add({
+      color: 'warning',
+      description: 'Use at least 8 characters for the new password.',
+      title: 'Password too short'
+    })
+    return
+  }
+
+  if (newPassword.value !== confirmPassword.value) {
+    toast.add({
+      color: 'warning',
+      description: 'The new password fields do not match.',
+      title: 'Check password'
+    })
+    return
+  }
+
+  if (!client) {
+    toast.add({
+      color: 'error',
+      description: 'Auth client unavailable. Reload the page.',
+      title: 'Error'
+    })
+    return
+  }
+
+  const passwordChanger = (client as AuthClientAccount).changePassword
+  if (typeof passwordChanger !== 'function') {
+    toast.add({
+      color: 'error',
+      description: 'Better Auth password change is not available — upgrade Better Auth wiring.',
+      title: 'Cannot update password'
+    })
+    return
+  }
+
+  changingPassword.value = true
+  try {
+    const result = await passwordChanger({
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value,
+      revokeOtherSessions: true
+    })
+    const msg = authResultMessage(result, 'Could not update password.')
+    if (msg) {
+      toast.add({ color: 'error', description: msg, title: 'Update failed' })
+      return
+    }
+
+    currentPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+    await refreshAuth()
+    toast.add({
+      color: 'success',
+      description: 'Your password is updated.',
+      title: 'Password changed'
+    })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Could not update password.'
+    toast.add({
+      color: 'error',
+      description: msg,
+      title: 'Error'
+    })
+  } finally {
+    changingPassword.value = false
+  }
+}
 </script>
 
 <template>
-  <div class="mx-auto max-w-xl">
+  <div class="mx-auto max-w-2xl space-y-6">
     <UCard>
       <template #header>
         <div>
@@ -182,6 +284,77 @@ async function saveDisplayName() {
           type="submit"
         >
           Save display name
+        </UButton>
+      </form>
+    </UCard>
+
+    <UCard v-if="convexUser">
+      <template #header>
+        <div>
+          <h2 class="font-semibold text-highlighted">
+            Password
+          </h2>
+          <p class="mt-1 text-sm text-muted">
+            Change the password used for this admin account. Other active sessions will be signed out.
+          </p>
+        </div>
+      </template>
+
+      <form
+        class="space-y-5"
+        novalidate
+        @submit.prevent="changeAccountPassword"
+      >
+        <UFormField
+          label="Current password"
+          name="current-password"
+          required
+        >
+          <UInput
+            id="current-password"
+            v-model="currentPassword"
+            autocomplete="current-password"
+            class="w-full"
+            type="password"
+          />
+        </UFormField>
+
+        <UFormField
+          label="New password"
+          name="new-password"
+          required
+          hint="Minimum 8 characters."
+        >
+          <UInput
+            id="new-password"
+            v-model="newPassword"
+            autocomplete="new-password"
+            class="w-full"
+            type="password"
+          />
+        </UFormField>
+
+        <UFormField
+          label="Confirm new password"
+          name="confirm-password"
+          required
+        >
+          <UInput
+            id="confirm-password"
+            v-model="confirmPassword"
+            autocomplete="new-password"
+            class="w-full"
+            type="password"
+          />
+        </UFormField>
+
+        <UButton
+          color="primary"
+          icon="i-lucide-key-round"
+          :loading="changingPassword"
+          type="submit"
+        >
+          Change password
         </UButton>
       </form>
     </UCard>
