@@ -8,7 +8,7 @@ function withoutTrailingSlash(url: string | undefined): string | undefined {
 function publicSiteUrl(): string {
   return withoutTrailingSlash(process.env.NUXT_PUBLIC_SITE_URL)
     ?? withoutTrailingSlash(process.env.SITE_URL)
-    ?? 'https://foxridgehoa.com'
+    ?? 'https://thefoxridgehoa.org'
 }
 
 function publicConvexUrl(): string {
