@@ -8,9 +8,12 @@ interface Props {
   iconPosition?: 'left' | 'right'
   to?: string
   href?: string
+  /** Native `type` when rendering a `<button>` (links ignore this). */
+  buttonType?: 'button' | 'reset' | 'submit'
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  buttonType: 'button',
   href: undefined,
   icon: undefined,
   iconPosition: 'left',
@@ -48,7 +51,7 @@ const componentAttrs = computed(() => {
   if (props.href)
     return { href: props.href }
 
-  return { type: 'button' }
+  return { type: props.buttonType }
 })
 </script>
 

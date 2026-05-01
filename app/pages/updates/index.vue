@@ -12,6 +12,7 @@ const {
   isPending,
   loadMore,
   refresh,
+  state: communityUpdatesQueryState,
   updates
 } = await usePaginatedPublicCommunityUpdates(10)
 
@@ -23,6 +24,20 @@ const convexUser = computed(() => authState.data.value?.user ?? null)
 const operatorProfile = computed(() => profileState.data.value?.data.profile ?? null)
 
 const authLoading = computed(() => authState.status.value === 'pending' || profileState.status.value === 'pending')
+
+const communityUpdatesFailed = computed(
+  () =>
+    communityUpdatesQueryState.status.value === 'error'
+)
+const communityUpdatesErrorMessage = computed(() => {
+  if (!communityUpdatesFailed.value)
+    return null
+  const err = communityUpdatesQueryState.error.value
+  if (err instanceof Error && err.message.trim().length > 0)
+    return err.message
+
+  return 'We couldn\'t load updates. Check your connection and try again.'
+})
 
 const displayNameConfigured = computed(() => {
   const u = convexUser.value
@@ -42,20 +57,24 @@ const showBoardPublishingCard = computed(
 useIntersectionObserver(
   loadMoreTarget,
   ([entry]) => {
-    if (entry?.isIntersecting)
+    if (entry?.isIntersecting && !communityUpdatesFailed.value)
       loadMore()
   },
   { rootMargin: '420px' }
 )
 
 function formatCommunityUpdateDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-US', {
+  return new Date(ms).toLocaleDateString(undefined, {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
     month: 'long',
     year: 'numeric'
   })
+}
+
+function isoDateTime(ms: number): string {
+  return new Date(ms).toISOString()
 }
 </script>
 
@@ -151,7 +170,26 @@ function formatCommunityUpdateDate(ms: number): string {
       padding="lg"
     >
       <div
-        v-if="!initialized && isPending"
+        v-if="communityUpdatesFailed"
+        class="mx-auto max-w-xl text-center"
+        role="alert"
+      >
+        <p class="text-body-lg text-slate-600 dark:text-slate-400">
+          {{ communityUpdatesErrorMessage }}
+        </p>
+        <M3Button
+          class="mx-auto mt-6"
+          variant="secondary"
+          size="md"
+          icon="heroicons:arrow-path"
+          @click="refresh"
+        >
+          Try again
+        </M3Button>
+      </div>
+
+      <div
+        v-else-if="!initialized && isPending"
         class="mx-auto max-w-3xl text-center text-sm text-slate-500"
         role="status"
       >
@@ -182,7 +220,7 @@ function formatCommunityUpdateDate(ms: number): string {
         v-else
         class="mx-auto max-w-3xl"
       >
-        <div class="relative space-y-8 before:absolute before:bottom-10 before:left-4 before:top-5 before:w-px before:bg-slate-200 dark:before:bg-slate-800">
+        <div class="relative space-y-10 before:absolute before:bottom-10 before:left-4 before:top-5 before:w-px before:bg-slate-200 md:space-y-12 dark:before:bg-slate-800">
           <article
             v-for="item in updates"
             :key="item.id"
@@ -198,12 +236,12 @@ function formatCommunityUpdateDate(ms: number): string {
             <div class="rounded-2xl border border-slate-200/80 bg-surface-elevated p-6 shadow-sm dark:border-slate-800">
               <header class="mb-4 flex flex-wrap items-start gap-3 border-slate-200 border-b pb-4 dark:border-slate-700">
                 <div class="min-w-0 flex-1">
-                  <p class="font-semibold text-slate-900 dark:text-white">
+                  <p class="break-words font-semibold text-slate-900 dark:text-white">
                     {{ item.authorDisplayName }}
                   </p>
                   <time
-                    :datetime="String(item.postedAt)"
                     class="text-sm text-slate-500 dark:text-slate-400"
+                    :datetime="isoDateTime(item.postedAt)"
                   >
                     {{ formatCommunityUpdateDate(item.postedAt) }}
                   </time>

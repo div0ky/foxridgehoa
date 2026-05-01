@@ -81,10 +81,9 @@ function previewSnippet(text: string, max = 160) {
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-10">
+  <div class="mx-auto w-full min-w-0 max-w-3xl space-y-10">
     <UAlert
       v-if="!loadingProfile && !isBoardMember"
-      class="mb-6"
       color="warning"
       variant="soft"
       title="Restricted"
@@ -99,7 +98,7 @@ function previewSnippet(text: string, max = 160) {
             Community updates
           </h1>
           <p class="mt-1 text-sm text-muted">
-            Compose in Markdown — up to three images. Your display name must be set on your account.
+            Compose in Markdown with up to three images. Your display name must be set on your account.
           </p>
         </div>
       </template>
@@ -121,6 +120,7 @@ function previewSnippet(text: string, max = 160) {
 
       <div
         v-if="loadingList && updates.length === 0"
+        aria-live="polite"
         class="text-sm text-muted"
         role="status"
       >
@@ -179,12 +179,24 @@ function previewSnippet(text: string, max = 160) {
         </li>
       </ul>
 
-      <p
+      <div
         v-else
-        class="text-sm text-muted"
+        class="flex gap-4 rounded-xl border border-dashed border-default px-4 py-5"
       >
-        No updates yet.
-      </p>
+        <Icon
+          class="size-10 shrink-0 text-muted"
+          name="lucide:inbox"
+          aria-hidden="true"
+        />
+        <div class="min-w-0">
+          <p class="font-medium text-highlighted">
+            Nothing published yet
+          </p>
+          <p class="mt-1 text-sm text-muted">
+            Compose your first announcement above with Markdown (and up to three images). Residents will see it under Updates once you publish.
+          </p>
+        </div>
+      </div>
     </UCard>
   </div>
 </template>

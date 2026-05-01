@@ -164,6 +164,23 @@ Not used as distinct brand hues yet; badges and outlines borrow **Fox Ember tint
 
 **The Two-Family Maximum Rule.** Only Plus Jakarta Sans and Inter participate in semantic roles; reach for weight and size before introducing a novelty face.
 
+## Icons
+
+**Standard set: [Lucide](https://lucide.dev)** (via `@iconify-json/lucide` and `@nuxt/icon`). One stroke weight and geometry keeps the HOA UI quiet and legible; avoid mixing other open-icon families in new work.
+
+### Usage in Nuxt
+
+- **`<Icon name="…" />`:** `lucide:<kebab-case-name>` (example: `lucide:house`, `lucide:arrow-right`).
+- **Props / config strings** (for example `M3Button` `icon`, toolbar items): prefer the collection prefix form `i-lucide-<kebab-case>` (example: `i-lucide-mail`, `i-lucide-calendar`) so Nuxt Icon resolves the same glyphs consistently.
+
+Pick the closest Lucide glyph to the meaning you need; **do not** introduce parallel Heroicons (or other sets) for new UI. Some existing routes and config still reference legacy `heroicons:*` names; migrate those to Lucide when touching the file, so the surface converges on one family.
+
+### Named rules
+
+**The Single-Stroke Rule.** Icons support labels and actions; they are not decoration. Default to outline-weight Lucide at readable sizes (`16–24px` inline, larger only for crest tiles or empty states).
+
+**The Masthead Glyph Rule.** The brand crest tile uses a single **home / residence** Lucide metaphor (for example `lucide:house`), orange gradient tile, rounded square; keep that pairing stable across header and footer.
+
 ## Elevation
 
 The system favors **flat tonal layering**: surfaces step through tinted backgrounds before introducing shadow. Shadows are diffuse and soft, emphasizing lift on interactive cards—not harsh drop dialogs.
@@ -214,7 +231,7 @@ The system favors **flat tonal layering**: surfaces step through tinted backgrou
 
 ### Masthead crest & icon badge
 
-Rounded square tile (**`rounded-xl` ~12px**) with gradient fox orange + `home-modern` icon; duplicates in footer at smaller scale—signature brand garnish (not faux enterprise logo chrome).
+Rounded square tile (**`rounded-xl` ~12px**) with gradient fox orange + Lucide residence glyph (`lucide:house` or agreed equivalent); duplicates in footer at smaller scale—signature brand garnish (not faux enterprise logo chrome).
 
 ### Prose surfaces
 
@@ -235,6 +252,7 @@ PRODUCT.md forbids interfaces that imitate **generic SaaS landing patterns**. Re
 - **Do** use tonal surfaces (`surface`, `dim`, `overlay`) prior to stacking shadows; reference CSS variables listed in `@layer base`.
 - **Do** respect **`prefers-reduced-motion`** by ensuring critical info never depends on Decorative slides (animations are enhancement-only fades).
 - **Do** cite **the Front-Porch Bulletin** metaphor when debating new ornament: ask whether a printed HOA flyer would include the element.
+- **Do** use **Lucide** for icons (see Icons section); when editing older files, swap remaining `heroicons:*` IDs to Lucide equivalents.
 
 ### Don't:
 

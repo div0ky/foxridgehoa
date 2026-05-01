@@ -530,7 +530,7 @@ const sizeClasses = {
 **Purpose**: Links, buttons, CTAs with icon support
 
 ```vue
-<M3Button variant="primary" size="md" icon="heroicons:arrow-right" to="/projects">
+<M3Button variant="primary" size="md" icon="lucide:arrow-right" to="/projects">
   View Projects
 </M3Button>
 ```
@@ -588,7 +588,7 @@ const sizeClasses = {
 **Purpose**: Compact icon-only actions
 
 ```vue
-<M3IconButton icon="heroicons:moon" label="Toggle theme" variant="ghost" size="md" />
+<M3IconButton icon="lucide:moon" label="Toggle theme" variant="ghost" size="md" />
 ```
 
 **Variants**: `default` (filled bg on hover), `elevated` (always filled), `ghost` (text only)
@@ -650,7 +650,7 @@ Always use array syntax for dynamic classes:
 - **Single responsibility**: One variant object per visual property (don't mix size + color)
 - **Explicit typing**: Union literals, not string enums (`'sm' | 'md' | 'lg'` not `Size`)
 - **Dark mode everywhere**: If you add a color class, add its `dark:` equivalent immediately
-- **Icon namespacing**: Use `heroicons:icon-name` format (Nuxt Icon module convention)
+- **Icon namespacing**: Use Lucide (`lucide:icon-name` on `<Icon>`, or `i-lucide-icon-name` where props expect the `i-lucide-*` collection form). Do not add new `heroicons:*` icons.
 
 ## Testing Your Component
 

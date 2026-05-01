@@ -7,6 +7,14 @@ import { isHomeownerInviteEnabled } from '~/config/product-features'
 
 const model = defineModel<HoaOperatorRole>({ required: true })
 
+interface Props {
+  disabled?: boolean
+}
+
+withDefaults(defineProps<Props>(), {
+  disabled: false
+})
+
 const items = computed(() => {
   const opts: { label: string, value: HoaOperatorRole }[] = []
   if (isHomeownerInviteEnabled) {
@@ -23,6 +31,7 @@ const items = computed(() => {
 <template>
   <USelect
     v-model="model"
+    :disabled="disabled"
     :items="items"
     label-key="label"
     placeholder="Choose a role"

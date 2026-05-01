@@ -315,7 +315,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-4xl space-y-8">
+  <div class="mx-auto w-full min-w-0 max-w-4xl space-y-8">
     <UAlert
       v-if="!loadingProfile && !isBoardMember"
       color="warning"
@@ -330,7 +330,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
         <template #header>
           <div>
             <h1 class="font-semibold text-highlighted">
-              Board contact — email recipients
+              Board contact: email recipients
             </h1>
             <p class="mt-1 text-sm text-muted">
               When a resident submits the public form, each person listed here receives the message as a direct email recipient (via Resend). Use a verified sender domain in Convex (<code class="text-xs">RESEND_FROM</code>, <code class="text-xs">RESEND_API_KEY</code>).
@@ -385,6 +385,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                 class="w-full sm:w-auto"
                 type="button"
                 variant="outline"
+                aria-label="Remove recipient"
                 @click="removeRecipientRow(index)"
               />
             </div>
@@ -448,9 +449,29 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
 
         <div
           v-else-if="accumulatedSubmissions.length === 0"
-          class="text-sm text-muted"
+          class="flex gap-4 rounded-xl border border-dashed border-default px-4 py-5"
         >
-          No submissions yet.
+          <Icon
+            class="size-10 shrink-0 text-muted"
+            name="lucide:inbox"
+            aria-hidden="true"
+          />
+          <div class="min-w-0 space-y-2">
+            <p class="font-medium text-highlighted">
+              No submissions yet
+            </p>
+            <p class="text-sm text-muted">
+              When neighbors use Contact the Board, messages appear here in order along with delivery status so you know who saw them.
+            </p>
+            <NuxtLink
+              class="text-sm font-medium text-primary hover:underline"
+              external
+              target="_blank"
+              to="/contact-the-board"
+            >
+              Open the public contact form
+            </NuxtLink>
+          </div>
         </div>
 
         <div
@@ -527,22 +548,40 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
             <table class="w-full min-w-[640px] text-left text-sm">
               <thead class="border-b border-default bg-muted/40">
                 <tr>
-                  <th class="px-3 py-2 font-medium text-muted">
+                  <th
+                    scope="col"
+                    class="px-3 py-2 font-medium text-muted"
+                  >
                     Received
                   </th>
-                  <th class="px-3 py-2 font-medium text-muted">
+                  <th
+                    scope="col"
+                    class="px-3 py-2 font-medium text-muted"
+                  >
                     Status
                   </th>
-                  <th class="px-3 py-2 font-medium text-muted">
+                  <th
+                    scope="col"
+                    class="px-3 py-2 font-medium text-muted"
+                  >
                     Name
                   </th>
-                  <th class="px-3 py-2 font-medium text-muted">
+                  <th
+                    scope="col"
+                    class="px-3 py-2 font-medium text-muted"
+                  >
                     Address
                   </th>
-                  <th class="px-3 py-2 font-medium text-muted">
+                  <th
+                    scope="col"
+                    class="px-3 py-2 font-medium text-muted"
+                  >
                     Message
                   </th>
-                  <th class="px-3 py-2 font-medium text-muted">
+                  <th
+                    scope="col"
+                    class="px-3 py-2 font-medium text-muted"
+                  >
                     Actions
                   </th>
                 </tr>

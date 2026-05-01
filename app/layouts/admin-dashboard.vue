@@ -219,7 +219,9 @@ async function onSignOut() {
         :title="adminTitle"
       />
 
-      <div class="min-w-0 flex-1 overflow-auto p-4 lg:p-6">
+      <div
+        class="min-w-0 flex-1 overflow-auto px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:px-6 lg:py-6"
+      >
         <slot />
       </div>
     </div>

@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  BOARD_CONTACT_LIMITS,
+  useBoardContactForm
+} from '~/composables/useBoardContactForm'
+
 definePageMeta({
   layout: 'default'
 })
@@ -18,6 +23,7 @@ useHead({
 const {
   isSubmitting,
   message,
+  statusAnnouncement,
   streetAddress,
   submit,
   submitterName
@@ -50,12 +56,20 @@ const {
           Use this form for questions or concerns for the board. Include your name and street address so we can respond appropriately.
         </p>
 
+        <p
+          aria-live="polite"
+          class="sr-only"
+          role="status"
+        >
+          {{ statusAnnouncement }}
+        </p>
+
         <M3Card
           variant="elevated"
           as="section"
         >
           <form
-            class="space-y-5"
+            class="space-y-6"
             novalidate
             @submit.prevent="submit"
           >
@@ -70,6 +84,7 @@ const {
                 autocomplete="name"
                 class="w-full"
                 :disabled="isSubmitting"
+                :maxlength="BOARD_CONTACT_LIMITS.name"
                 placeholder="Jane Resident"
               />
             </UFormField>
@@ -86,6 +101,7 @@ const {
                 autocomplete="street-address"
                 class="w-full"
                 :disabled="isSubmitting"
+                :maxlength="BOARD_CONTACT_LIMITS.street"
                 placeholder="123 Rifle Ridge"
               />
             </UFormField>
@@ -102,17 +118,22 @@ const {
                 class="w-full"
                 autoresize
                 :disabled="isSubmitting"
+                :maxlength="BOARD_CONTACT_LIMITS.message"
                 placeholder="How can we help?"
               />
             </UFormField>
 
-            <UButton
-              color="primary"
-              :loading="isSubmitting"
-              type="submit"
+            <M3Button
+              variant="primary"
+              size="lg"
+              button-type="submit"
+              icon="heroicons:paper-airplane"
+              icon-position="right"
+              class="w-full sm:w-auto"
+              :disabled="isSubmitting"
             >
-              Send message
-            </UButton>
+              {{ isSubmitting ? 'Sending…' : 'Send message' }}
+            </M3Button>
           </form>
         </M3Card>
 

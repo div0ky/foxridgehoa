@@ -15,6 +15,8 @@ Frontend admin routes use `@nuxt/ui` with Tailwind CSS v4 imports in [`app/asset
 | `CONVEX_SITE_URL` | Convex `env` | Same as `NUXT_PUBLIC_CONVEX_SITE_URL` |
 | `BETTER_AUTH_SECRET` | Convex `env` | Long random secret for Better Auth |
 | `OPERATOR_BOOTSTRAP_SECRET` | Convex `env` only | Guards the one-time **`internal`** bootstrap mutation |
+| `RESEND_API_KEY` | Convex `env` | Resend API key used by board contact emails and admin invitations |
+| `RESEND_FROM` | Convex `env` | Verified Resend sender used by board contact emails and admin invitations |
 
 Set Convex-side variables with `npx convex env set NAME value`. Restart `nuxt dev` after changing Nuxt env.
 
@@ -43,8 +45,8 @@ npx convex env set TRUSTED_ORIGINS http://localhost:3000,http://127.0.0.1:3000
 ## Accounts and roles (`operatorProfiles`)
 
 - **Roles** (`convex/schema.ts`): `homeOwner`, `boardMember`, `managementCompany`.
-- Public HTTP sign-up stays **disabled** via `createAuth` in [`convex/http.ts`](/convex/http.ts). Provisioning runs only from Convex mutations using **`createAuthForProvisioning`** in [`convex/auth.ts**](/convex/auth.ts) (`disableSignUp: false`), never registered on HTTP.
-- **Board members** invoke `api.operators.provisionOperator` ([`convex/operators.ts`](/convex/operators.ts)) to invite users; **management** can use `/admin` but cannot mutate invite.
+- Public HTTP sign-up stays **disabled** via `createAuth` in [`convex/http.ts`](/convex/http.ts). Provisioning runs only from Convex functions using **`createAuthForProvisioning`** in [`convex/auth.ts`](/convex/auth.ts) (`disableSignUp: false`), never registered on HTTP.
+- **Board members** invoke `api.operators.inviteOperator` ([`convex/operators.ts`](/convex/operators.ts)) to invite users; **management** can use `/admin` but cannot mutate invite. The invite action generates a temporary password, emails it through Resend, and returns the password once so the board member can copy/share it manually if delivery fails.
 - **Home owner** in invite UI is gated by [`~/config/product-features`](/app/config/product-features.ts): `isHomeownerInviteEnabled` (default **false**) until homeowner portal milestone.
 
 ## First board operator — bootstrap CLI

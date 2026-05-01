@@ -9,7 +9,6 @@
  */
 
 import type * as admin_bootstrap from "../admin/bootstrap.js";
-import type * as admin_invite from "../admin/invite.js";
 import type * as admin_provisioning from "../admin/provisioning.js";
 import type * as auth from "../auth.js";
 import type * as authz_requireBoardMember from "../authz/requireBoardMember.js";
@@ -33,7 +32,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "admin/bootstrap": typeof admin_bootstrap;
-  "admin/invite": typeof admin_invite;
   "admin/provisioning": typeof admin_provisioning;
   auth: typeof auth;
   "authz/requireBoardMember": typeof authz_requireBoardMember;
