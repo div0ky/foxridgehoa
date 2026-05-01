@@ -3,6 +3,7 @@ import { useIntersectionObserver } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
+import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttachmentGallery.vue'
 import CommunityUpdateComposer from '~/components/CommunityUpdateComposer.vue'
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
 
@@ -233,46 +234,42 @@ function isoDateTime(ms: number): string {
               />
             </div>
 
-            <div class="rounded-2xl border border-slate-200/80 bg-surface-elevated p-6 shadow-sm dark:border-slate-800">
-              <header class="mb-4 flex flex-wrap items-start gap-3 border-slate-200 border-b pb-4 dark:border-slate-700">
-                <div class="min-w-0 flex-1">
-                  <p class="break-words font-semibold text-slate-900 dark:text-white">
-                    {{ item.authorDisplayName }}
-                  </p>
-                  <time
-                    class="text-sm text-slate-500 dark:text-slate-400"
-                    :datetime="isoDateTime(item.postedAt)"
+            <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-surface-elevated shadow-sm dark:border-slate-800">
+              <div class="p-6">
+                <header class="mb-4 flex flex-wrap items-start gap-3 border-slate-200 border-b pb-4 dark:border-slate-700">
+                  <div class="min-w-0 flex-1">
+                    <p class="break-words font-semibold text-slate-900 dark:text-white">
+                      {{ item.authorDisplayName }}
+                    </p>
+                    <time
+                      class="text-sm text-slate-500 dark:text-slate-400"
+                      :datetime="isoDateTime(item.postedAt)"
+                    >
+                      {{ formatCommunityUpdateDate(item.postedAt) }}
+                    </time>
+                  </div>
+                  <NuxtLink
+                    :to="`/updates/${item.id}`"
+                    class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-800 dark:text-slate-300 dark:hover:border-primary-900 dark:hover:bg-primary-950/50 dark:hover:text-primary-300"
                   >
-                    {{ formatCommunityUpdateDate(item.postedAt) }}
-                  </time>
-                </div>
-                <NuxtLink
-                  :to="`/updates/${item.id}`"
-                  class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-800 dark:text-slate-300 dark:hover:border-primary-900 dark:hover:bg-primary-950/50 dark:hover:text-primary-300"
-                >
-                  <Icon
-                    name="heroicons:link"
-                    class="h-4 w-4"
-                  />
-                  Open / Share
-                </NuxtLink>
-              </header>
+                    <Icon
+                      name="heroicons:link"
+                      class="h-4 w-4"
+                    />
+                    Open / Share
+                  </NuxtLink>
+                </header>
 
-              <CommunityUpdateMarkdown :markdown="item.bodyMarkdown" />
-
-              <div
-                v-if="item.imageUrls.length > 0"
-                class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2"
-              >
-                <img
-                  v-for="(src, idx) in item.imageUrls"
-                  :key="`${item.id}-${idx}`"
-                  :src="src"
-                  :alt="`Attachment ${idx + 1}`"
-                  class="max-h-80 w-full rounded-xl object-cover ring-1 ring-slate-200/80 dark:ring-slate-700"
-                  loading="lazy"
-                >
+                <CommunityUpdateMarkdown :markdown="item.bodyMarkdown" />
               </div>
+
+              <CommunityUpdateAttachmentGallery
+                v-if="item.imageUrls.length > 0"
+                variant="timeline"
+                :post-id="item.id"
+                :image-urls="item.imageUrls"
+                :body-markdown="item.bodyMarkdown"
+              />
             </div>
           </article>
         </div>

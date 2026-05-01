@@ -85,3 +85,17 @@ export function getCommunityUpdatePostedAtLabel(
     year: 'numeric'
   })
 }
+
+/** Accessible alt text for attachment strips (headline + position). */
+export function getCommunityUpdateAttachmentAlt(
+  bodyMarkdown: string,
+  imageIndex: number,
+  imageCount: number
+): string {
+  const topic = communityUpdateHeadline(bodyMarkdown, 88)
+  const label = topic.length > 0 ? topic : 'Community update'
+  if (imageCount <= 1)
+    return `Image, ${label}`
+
+  return `Image ${imageIndex + 1} of ${imageCount}, ${label}`
+}
