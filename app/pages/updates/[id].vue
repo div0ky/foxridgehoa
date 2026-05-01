@@ -5,6 +5,7 @@ import { ConvexHttpClient } from 'convex/browser'
 import { computed } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
+import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttachmentGallery.vue'
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
 import {
   getCommunityUpdateCanonicalUrl,
@@ -262,21 +263,15 @@ defineOgImage('CommunityUpdate', {
                 :markdown="update.bodyMarkdown"
                 class="max-w-[70ch] text-lg leading-relaxed text-slate-950 prose-headings:text-slate-950 prose-strong:text-slate-950 sm:text-xl sm:leading-8 dark:text-white dark:prose-headings:text-white dark:prose-strong:text-white"
               />
-
-              <div
-                v-if="update.imageUrls.length > 0"
-                class="mt-5 grid grid-cols-1 gap-3 overflow-hidden rounded-2xl border border-slate-200/80 sm:grid-cols-2 dark:border-slate-800"
-              >
-                <img
-                  v-for="(src, idx) in update.imageUrls"
-                  :key="`${update.id}-${idx}`"
-                  :src="src"
-                  :alt="`Image ${idx + 1} of ${update.imageUrls.length} attached to this update`"
-                  class="max-h-[min(30rem,70svh)] w-full object-cover sm:max-h-[30rem]"
-                  loading="lazy"
-                >
-              </div>
             </div>
+
+            <CommunityUpdateAttachmentGallery
+              v-if="update.imageUrls.length > 0"
+              variant="detail"
+              :post-id="update.id"
+              :image-urls="update.imageUrls"
+              :body-markdown="update.bodyMarkdown"
+            />
 
             <footer class="border-slate-200/80 border-t px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5 dark:border-slate-800">
               <time
