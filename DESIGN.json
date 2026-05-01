@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-01T00:00:00Z",
+  "title": "Design System: Fox Ridge HOA",
+  "extensions": {
+    "colorMeta": {
+      "fox-orange-500": {
+        "role": "primary",
+        "displayName": "Fox Ember 500",
+        "canonical": "#f97316",
+        "tonalRamp": [
+          "#431407",
+          "#7c2d12",
+          "#c2410c",
+          "#ea580c",
+          "#f97316",
+          "#fb923c",
+          "#fed7aa",
+          "#ffedd5",
+          "#fff7ed"
+        ]
+      },
+      "fox-orange-600": {
+        "role": "primary",
+        "displayName": "Fox Ember 600",
+        "canonical": "#ea580c",
+        "tonalRamp": []
+      },
+      "surface-page-light": {
+        "role": "neutral",
+        "displayName": "Snow Page (light)",
+        "canonical": "#ffffff",
+        "tonalRamp": []
+      },
+      "surface-page-dark": {
+        "role": "neutral",
+        "displayName": "Snow Page (dark)",
+        "canonical": "#0f172a",
+        "tonalRamp": []
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Section heroes rendered via clamp utilities mirrored in DESIGN.md typography.display."
+      },
+      "body-md": {
+        "displayName": "Body (md)",
+        "purpose": "Default prose and HOA reading copy anchored to Inter plus CSS variables."
+      }
+    },
+    "shadows": [
+      {
+        "name": "soft-halo",
+        "value": "0 10px 40px -10px rgb(0 0 0 / 10%), 0 2px 10px -2px rgb(0 0 0 / 4%)",
+        "purpose": "Diffuse lift behind marketing-sized cards (.shadow-soft-lg)."
+      },
+      {
+        "name": "fox-glow-xl",
+        "value": "0 20px 25px -5px rgb(249 115 22 / 0.25), 0 10px 10px -6px rgb(249 115 22 / 0.25)",
+        "purpose": "Primary button + crest halo approximating Tailwind shadow-lg shadow-primary-500/25."
+      }
+    ],
+    "motion": [
+      {
+        "name": "transition-standard",
+        "value": "all 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default component hover/focus timing from M3 primitives (transition-all duration-300)."
+      },
+      {
+        "name": "ease-out-soft",
+        "value": "0.6s ease-out",
+        "purpose": "Hero fadeSlide utilities (.animate-fade-in / .animate-slide-up)."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Pill Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Marketing + resident CTAs tuned to Warm Fox Ember gradients with confident rounded-full gestures.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Community updates</button>",
+      "css": ".ds-btn-primary { appearance: none; cursor: pointer; font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.05em; color: #ffffff; border-radius: 9999px; border: none; padding: 0.75rem 1.75rem; min-height: 2.75rem; background-image: linear-gradient(to right, #f97316, #ea580c); box-shadow: 0 20px 25px -5px rgb(249 115 22 / 0.22), 0 10px 10px -6px rgb(249 115 22 / 0.18); transition: box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 300ms cubic-bezier(0.4, 0, 0.2, 1), filter 300ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-primary:hover { filter: brightness(1.05); box-shadow: 0 25px 35px -8px rgb(249 115 22 / 0.28); } .ds-btn-primary:active { transform: translateY(1px); filter: brightness(0.97); } .ds-btn-primary:focus-visible { outline: 2px solid #ea580c; outline-offset: 3px; } .ds-btn-primary:disabled { cursor: not-allowed; opacity: 0.5; box-shadow: none; filter: grayscale(30%); }"
+    },
+    {
+      "name": "Secondary Outline Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Low-contrast HOA actions that still read as tactile without commanding entire sections.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">Documents</button>",
+      "css": ".ds-btn-secondary { appearance: none; cursor: pointer; font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; color: #c2410c; border-radius: 9999px; border: 2px solid rgba(251, 146, 60, 0.45); background-color: rgba(255, 237, 213, 0.6); padding: 0.7rem 1.25rem; min-height: 2.75rem; transition: border-color 300ms cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms cubic-bezier(0.4, 0, 0.2, 1), color 300ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-secondary:hover { background-color: #ffedd5; border-color: rgba(251, 146, 60, 0.75); color: #9a3412; } .ds-btn-secondary:focus-visible { outline: 2px solid #f97316; outline-offset: 3px; } .ds-btn-secondary:disabled { cursor: not-allowed; opacity: 0.5; border-color: rgba(148, 163, 184, 0.55); background-color: rgba(226, 232, 240, 0.4); color: rgba(148, 163, 184, 0.9); }"
+    },
+    {
+      "name": "Elevated Community Card",
+      "kind": "card",
+      "refersTo": "card-elevated",
+      "description": "Default resident-facing container with roomy 24px radii pairing white plates + restrained borders.",
+      "html": "<article class=\"ds-card-elevated\"><h3 class=\"ds-card-heading\">Quarterly HOA meeting recap</h3><p class=\"ds-card-copy\">Parking passes will be mailed after dues post on the 15th.</p></article>",
+      "css": ".ds-card-elevated { border-radius: 24px; padding: 24px 28px; background-color: #ffffff; border: 1px solid #f1f5f9; color: #1e293b; box-shadow: 0 10px 40px -10px rgb(0 0 0 / 10%), 0 2px 10px -2px rgb(0 0 0 / 4%); transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-card-elevated:hover { transform: translateY(-4px); box-shadow: 0 35px 40px -20px rgb(15 23 42 / 20%); } .ds-card-heading { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 1.25rem; font-weight: 600; letter-spacing: -0.015em; color: #0f172a; margin: 0 0 0.85rem 0; } .ds-card-copy { font-family: 'Inter', system-ui, sans-serif; font-size: 1rem; line-height: 1.65; margin: 0; color: #334155; }"
+    },
+    {
+      "name": "Fox Soft Badge",
+      "kind": "chip",
+      "refersTo": "badge-soft",
+      "description": "Inline status labels that borrow Fox Ember tints without shouting like marketing pills.",
+      "html": "<span class=\"ds-badge-soft\">Resident notice</span>",
+      "css": ".ds-badge-soft { display: inline-flex; align-items: center; border-radius: 9999px; padding: 6px 12px; font-family: 'Inter', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; background-color: #ffedd5; color: #c2410c; border: none; gap: 0.35rem; transition: transform 240ms cubic-bezier(0.4, 0, 0.2, 1), background-color 240ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-badge-soft:hover { transform: translateY(-1px); background-color: #fdba74; } .ds-badge-soft:focus-visible { outline: 2px dashed #ea580c; outline-offset: 3px; }"
+    },
+    {
+      "name": "Sticky Site Header Link",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Desktop navigation chip echoing translucent header states from layouts/default.vue.",
+      "html": "<nav class=\"ds-nav-chip\"><a class=\"ds-nav-link\" href=\"#updates\">Community updates</a></nav>",
+      "css": ".ds-nav-chip { display: inline-flex; gap: 0.65rem; } .ds-nav-link { font-family: 'Inter', system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.015em; text-decoration: none; color: #475569; border-radius: 8px; padding: 10px 16px; border: none; transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1), color 300ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-nav-link:hover { background-color: rgba(226, 232, 240, 0.7); color: #0f172a; } .ds-nav-link:focus-visible { outline: 2px solid #ea580c; outline-offset: 3px; } .ds-nav-link:active { background-color: rgba(226, 232, 240, 0.95); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Front-Porch Bulletin",
+    "overview": "The interface reads like a trustworthy neighborhood notice surface: daylight-friendly, calm hierarchy, orange used as a sparing signal for tap here and what changed, not theater. Public pages favor scan-friendly sections, roomy line height, and slates keyed to HOA paperwork and civic calm rather than SaaS dashboards. Darkness is respectful (resident kitchen-table phone at night), not noir tech.\n\nPRODUCT.md rejects treating the HOA like venture growth UX. Visually, this means rejecting hero-metrics templates, gratuitous novelty, and restless motion. Prefer honest labels, repeatable section rhythm, and the same accents from top to bottom of the funnel.\n\nThe system pairs Restrained tint strategy overall: tinted neutrals and surfaces carry the page; fox orange anchors interactive emphasis and warmth. Decorative mesh and soft gradients appear only where they support depth without stealing focus (hero wash, crest-style icon badges).",
+    "keyCharacteristics": [
+      "Tinted slate surfaces layered through CSS variables (`--surface`, `--surface-dim`, `--surface-elevated`, `--surface-overlay`).",
+      "Expressive-but-neighborly rounded geometry: pill buttons (`rounded-full`), generous cards (`24px`).",
+      "Typography split: Plus Jakarta Sans for headings (`--font-display`), Inter for prose and UI chrome (`--font-sans`).",
+      "Motion defaults to **300ms** transitions on interaction states only; avoids layout-driving animation clutter."
+    ],
+    "rules": [
+      {
+        "name": "The Front-Porch Voice Rule.",
+        "body": "Keep Fox Ember at conversational volume: if more than roughly one tenth of above-the-fold pixels reads as saturated orange, pull back into slate surfaces and typography weight instead of adding another orange block.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark-Mode Tint Rule.",
+        "body": "Never pure black or pure white fills: derive surfaces from layered slate blues and softened orange accents so nighttime reading stays neighbor-calm (`main.css` dark RGB tokens).",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Family Maximum Rule.",
+        "body": "Only Plus Jakarta Sans and Inter participate in semantic roles; reach for weight and size before introducing a novelty face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Earned Lift Rule.",
+        "body": "Cards sit flat (`border` + tonal fill) until interaction or purposeful emphasis; translateY lifts (`hover:-translate-y-1`) only accompany existing interactive affordances (`.card-interactive` utility).",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep fox orange concentrated on actionable controls, crest chips, sincere links—pair with expansive negative space (`max-w-6xl` gutters, roomy section spacing).",
+      "**Do** leverage Plus Jakarta Sans headlines + Inter paragraphs for HOA copy; align body widths to readable measure (~`65–70ch`).",
+      "**Do** use tonal surfaces (`surface`, `dim`, `overlay`) prior to stacking shadows; reference CSS variables listed in `@layer base`.",
+      "**Do** respect **`prefers-reduced-motion`** by ensuring critical info never depends on Decorative slides (animations are enhancement-only fades).",
+      "**Do** cite **the Front-Porch Bulletin** metaphor when debating new ornament: ask whether a printed HOA flyer would include the element."
+    ],
+    "donts": [
+      "**Don't** recreate **generic SaaS landing clichés**: fake urgency microcopy, giant vanity metrics blocks, homogeneous icon-grids promising \"growth,\" hollow testimonial scaffolding.",
+      "**Don't** sprinkle **Fox Ember patches** arbitrarily on static text blocks; emphasize through typography before color.",
+      "**Don't** bolt on **novel gradient-text headlines** (`bg-clip-text` treatment) except where legacy utility already exists—and never for essential reading content.",
+      "**Don't** thicken **accent side-stripes** arbitrarily on structural cards/lists (avoid new `border-l` thicker than informational needs; aligns with immaculate ban on ornamental side rails).",
+      "**Don't** darken the HOA site into nightclub contrast; dark mode stays slate-blue layered, softened orange—not neon cyber."
+    ]
+  }
+}
