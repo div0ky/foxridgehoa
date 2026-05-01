@@ -328,7 +328,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-8">
+  <div class="mx-auto w-full min-w-0 max-w-3xl space-y-8">
     <input
       ref="replaceInputEl"
       accept=".pdf,application/pdf"
@@ -459,6 +459,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     class="w-full sm:w-auto"
                     size="sm"
                     variant="ghost"
+                    aria-label="Remove this PDF row"
                     @click="removeCreatePdfRow(index)"
                   />
                 </div>
@@ -483,6 +484,25 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                 />
               </div>
             </form>
+          </section>
+
+          <section
+            v-if="documents.length === 0"
+            class="flex gap-4 rounded-xl border border-dashed border-default px-4 py-5"
+          >
+            <Icon
+              class="size-10 shrink-0 text-muted"
+              name="lucide:folder-open"
+              aria-hidden="true"
+            />
+            <div class="min-w-0">
+              <h2 class="font-medium text-highlighted">
+                No homeowner-facing documents yet
+              </h2>
+              <p class="mt-1 text-sm text-muted">
+                When you publish, cards show on the Important Documents section of the home page. Add a title, short description, and at least one PDF above.
+              </p>
+            </div>
           </section>
 
           <!-- Existing -->
@@ -513,29 +533,37 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     <UButton
                       color="neutral"
                       icon="i-lucide-arrow-up"
-                      size="sm"
+                      size="md"
+                      square
                       variant="outline"
+                      aria-label="Move document earlier in home page order"
                       @click="moveDocument(doc.id, -1)"
                     />
                     <UButton
                       color="neutral"
                       icon="i-lucide-arrow-down"
-                      size="sm"
+                      size="md"
+                      square
                       variant="outline"
+                      aria-label="Move document later in home page order"
                       @click="moveDocument(doc.id, 1)"
                     />
                     <UButton
                       color="neutral"
                       icon="i-lucide-pencil"
-                      size="sm"
+                      size="md"
+                      square
                       variant="soft"
+                      aria-label="Edit title, description, and icon"
                       @click="startEditMeta(doc)"
                     />
                     <UButton
                       color="error"
                       icon="i-lucide-trash-2"
-                      size="sm"
+                      size="md"
+                      square
                       variant="ghost"
+                      aria-label="Delete document and all PDF files"
                       @click="onDeleteDocument(doc.id)"
                     />
                   </div>
@@ -609,6 +637,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                         class="w-full sm:w-auto"
                         size="sm"
                         variant="ghost"
+                        aria-label="Remove this PDF from the document"
                         @click="onRemoveFile(doc.id, file.storageId)"
                       />
                     </div>

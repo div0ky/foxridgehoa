@@ -19,6 +19,10 @@ const publicNavLinks = [
     to: '/#board'
   },
   {
+    label: 'Contact the Board',
+    to: '/contact-the-board'
+  },
+  {
     label: 'Documents',
     to: '/#documents'
   },

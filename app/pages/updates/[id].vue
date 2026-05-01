@@ -179,10 +179,10 @@ defineOgImage('CommunityUpdate', {
       padding="lg"
       class="flex flex-1 flex-col justify-center bg-transparent"
     >
-      <div class="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-2xl border border-slate-200/80 bg-white/80 px-6 py-5 text-slate-600 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
+      <div class="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-3xl border border-slate-200/80 bg-surface-elevated px-6 py-5 text-body-md text-slate-600 shadow-soft dark:border-slate-800 dark:text-slate-300">
         <Icon
           name="heroicons:arrow-path"
-          class="h-5 w-5 animate-spin text-primary-500"
+          class="h-5 w-5 shrink-0 animate-spin text-primary-500"
         />
         <p role="status">
           Loading community update…
@@ -194,71 +194,73 @@ defineOgImage('CommunityUpdate', {
       <M3Section
         background="default"
         padding="md"
-        class="flex flex-1 flex-col justify-center bg-transparent"
+        class="flex flex-1 flex-col justify-start bg-transparent"
       >
         <template #background>
           <div class="pointer-events-none absolute -right-32 -top-32 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl" />
-          <div class="pointer-events-none absolute left-1/2 top-32 h-72 w-72 -translate-x-1/2 rounded-full bg-orange-500/10 blur-3xl" />
+          <div class="pointer-events-none absolute left-1/2 top-32 h-72 w-72 -translate-x-1/2 rounded-full bg-primary-500/10 blur-3xl" />
           <div class="pointer-events-none absolute -bottom-36 -left-24 h-80 w-80 rounded-full bg-primary-600/10 blur-3xl" />
         </template>
 
-        <div class="mx-auto max-w-2xl">
+        <div class="mx-auto w-full max-w-2xl">
           <M3Button
             variant="ghost"
             size="sm"
             to="/updates"
             icon="heroicons:arrow-left"
-            class="mb-6"
+            class="mb-4 sm:mb-6"
           >
             View all updates
           </M3Button>
 
-          <article class="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-surface-elevated text-slate-950 shadow-2xl shadow-slate-950/10 ring-1 ring-white/50 dark:border-slate-800 dark:text-white dark:shadow-black/30 dark:ring-white/5">
+          <article class="overflow-hidden rounded-3xl border border-slate-200/80 bg-surface-elevated text-slate-950 shadow-soft dark:border-slate-800 dark:text-white dark:shadow-none">
             <h1 class="sr-only">
               Community update from {{ update.authorDisplayName }}
             </h1>
 
-            <header class="flex items-start gap-3 px-5 pb-3 pt-5 sm:px-6">
-              <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-orange-500 shadow-md shadow-orange-500/20">
-                <Icon
-                  name="heroicons:home-modern"
-                  class="h-6 w-6 text-white"
-                />
-              </div>
-
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-x-1.5">
-                  <p class="truncate font-bold text-slate-950 dark:text-white">
-                    {{ update.authorDisplayName }}
-                  </p>
+            <header class="flex flex-col gap-4 px-4 pb-3 pt-4 sm:flex-row sm:items-start sm:gap-3 sm:px-6 sm:pt-5">
+              <div class="flex min-w-0 flex-1 items-start gap-3">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-md shadow-primary-500/25">
                   <Icon
-                    name="heroicons:check-badge-solid"
-                    class="h-5 w-5 shrink-0 text-sky-500"
-                    aria-label="Verified"
+                    name="heroicons:home-modern"
+                    class="h-6 w-6 text-white"
                   />
                 </div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">
-                  {{ authorHandle }}
-                </p>
+
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <p class="break-words font-bold text-slate-950 dark:text-white">
+                      {{ update.authorDisplayName }}
+                    </p>
+                    <Icon
+                      name="heroicons:check-badge-solid"
+                      class="h-5 w-5 shrink-0 text-primary-600 dark:text-primary-400"
+                      aria-hidden="true"
+                    />
+                    <span class="sr-only">Verified board author</span>
+                  </div>
+                  <p class="break-words text-sm text-slate-500 dark:text-slate-400">
+                    {{ authorHandle }}
+                  </p>
+                </div>
               </div>
 
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-800 dark:text-slate-300 dark:hover:border-primary-900 dark:hover:bg-primary-950/50 dark:hover:text-primary-300"
+              <M3Button
+                variant="secondary"
+                size="sm"
+                icon="heroicons:link"
+                class="w-full min-h-[44px] sm:mt-0 sm:w-auto sm:min-h-11 sm:self-start"
+                aria-label="Copy link to this community update"
                 @click="copyUpdateLink"
               >
-                <Icon
-                  name="heroicons:link"
-                  class="h-4 w-4"
-                />
                 Copy link
-              </button>
+              </M3Button>
             </header>
 
-            <div class="px-5 pb-4 sm:px-6">
+            <div class="px-4 pb-4 sm:px-6">
               <CommunityUpdateMarkdown
                 :markdown="update.bodyMarkdown"
-                class="text-[1.35rem] leading-8 text-slate-950 prose-headings:text-slate-950 prose-strong:text-slate-950 dark:text-white dark:prose-headings:text-white dark:prose-strong:text-white"
+                class="max-w-[70ch] text-lg leading-relaxed text-slate-950 prose-headings:text-slate-950 prose-strong:text-slate-950 sm:text-xl sm:leading-8 dark:text-white dark:prose-headings:text-white dark:prose-strong:text-white"
               />
 
               <div
@@ -269,17 +271,18 @@ defineOgImage('CommunityUpdate', {
                   v-for="(src, idx) in update.imageUrls"
                   :key="`${update.id}-${idx}`"
                   :src="src"
-                  :alt="`Attachment ${idx + 1}`"
-                  class="max-h-[30rem] w-full object-cover"
+                  :alt="`Image ${idx + 1} of ${update.imageUrls.length} attached to this update`"
+                  class="max-h-[min(30rem,70svh)] w-full object-cover sm:max-h-[30rem]"
                   loading="lazy"
                 >
               </div>
             </div>
 
-            <footer class="px-5 pb-5 sm:px-6">
+            <footer class="border-slate-200/80 border-t px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5 dark:border-slate-800">
               <time
                 :datetime="String(update.postedAt)"
                 class="block text-sm text-slate-500 dark:text-slate-400"
+                :aria-label="`Posted ${formattedPostedAt}`"
               >
                 {{ formattedPostedAt }}
               </time>

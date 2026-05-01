@@ -105,7 +105,7 @@ async function saveDisplayName() {
   if (typeof updater !== 'function') {
     toast.add({
       color: 'error',
-      description: 'Better Auth profile update not available — upgrade Better Auth wiring.',
+      description: 'Better Auth profile update not available; upgrade Better Auth wiring.',
       title: 'Cannot update profile'
     })
     return
@@ -179,7 +179,7 @@ async function changeAccountPassword() {
   if (typeof passwordChanger !== 'function') {
     toast.add({
       color: 'error',
-      description: 'Better Auth password change is not available — upgrade Better Auth wiring.',
+      description: 'Better Auth password change is not available; upgrade Better Auth wiring.',
       title: 'Cannot update password'
     })
     return
@@ -221,7 +221,7 @@ async function changeAccountPassword() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl space-y-6">
+  <div class="mx-auto w-full min-w-0 max-w-2xl space-y-6">
     <UCard>
       <template #header>
         <div>
@@ -271,12 +271,14 @@ async function changeAccountPassword() {
           />
         </UFormField>
 
-        <p
-          v-if="operatorProfile?.role !== 'boardMember'"
-          class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200"
-        >
-          Your operator role is not <strong>board member</strong>, so you cannot publish HOA updates — but you can still save a display name here.
-        </p>
+        <UAlert
+          v-if="operatorProfile && operatorProfile.role !== 'boardMember'"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-info"
+          title="Limited publishing access"
+          description="Only the Board member role can publish HOA updates here. You can still save your display name for signed content."
+        />
 
         <UButton
           color="primary"

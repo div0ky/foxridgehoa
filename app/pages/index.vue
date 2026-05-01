@@ -2,28 +2,40 @@
 import { computed } from 'vue'
 
 import { defaultImportantDocumentIcon } from '~/config/important-document-icons'
-import { communityUpdateHeadline } from '~/utils/communityUpdateExcerpt'
+import { communityUpdateHeadline, getCommunityUpdatePostedAtLabel } from '~/utils/communityUpdateExcerpt'
 
-const { documents, isPending: importantDocumentsPending } = await useImportantDocuments()
-
-const {
-  displayYear: hoaMeetingsDisplayYear,
-  isPending: hoaMeetingsPending,
-  meetingRows: hoaMeetingRows,
-  schedule: hoaMeetingSchedule
-} = await usePublicMeetingSchedule()
+const [
+  { documents, isPending: importantDocumentsPending },
+  {
+    displayYear: hoaMeetingsDisplayYear,
+    isPending: hoaMeetingsPending,
+    meetingRows: hoaMeetingRows,
+    schedule: hoaMeetingSchedule
+  },
+  { isPending: communityUpdatesPending, updates: recentCommunityUpdates }
+] = await Promise.all([
+  useImportantDocuments(),
+  usePublicMeetingSchedule(),
+  usePublicCommunityUpdates(3)
+])
 
 const showImportantDocuments = computed(
   () => !importantDocumentsPending.value && documents.value.length > 0
 )
 
-const {
-  isPending: communityUpdatesPending,
-  updates: recentCommunityUpdates
-} = await usePublicCommunityUpdates(3)
-
 const showCommunityUpdatesTeaser = computed(
   () => !communityUpdatesPending.value && recentCommunityUpdates.value.length > 0
+)
+
+const communityUpdateTeasers = computed(() =>
+  recentCommunityUpdates.value.map(update => ({
+    authorDisplayName: update.authorDisplayName,
+    headline: communityUpdateHeadline(update.bodyMarkdown),
+    id: update.id,
+    imageUrls: update.imageUrls,
+    postedAt: update.postedAt,
+    postedAtLabel: getCommunityUpdatePostedAtLabel({ postedAt: update.postedAt })
+  }))
 )
 
 const currentMonth = new Date().getMonth()
@@ -120,7 +132,7 @@ function iconForImportantDoc(icon?: string) {
         </M3Badge>
         <h1 class="mb-6 font-display text-display-lg tracking-tight text-slate-900 dark:text-white">
           Welcome to
-          <span class="text-gradient">Fox Ridge</span>
+          <span class="text-primary-600 dark:text-primary-400">Fox Ridge</span>
         </h1>
         <p class="mb-10 text-xl leading-relaxed text-slate-600 dark:text-slate-400">
           A beautiful community where neighbors become friends.<br class="hidden sm:block">
@@ -190,7 +202,7 @@ function iconForImportantDoc(icon?: string) {
       background="dim"
       padding="lg"
     >
-      <div class="grid items-center gap-12 lg:grid-cols-2">
+      <div class="grid items-center gap-10 lg:gap-16 lg:grid-cols-2">
         <div>
           <M3Badge
             variant="soft"
@@ -249,7 +261,7 @@ function iconForImportantDoc(icon?: string) {
         description="Meet the dedicated volunteers who serve our community."
         size="md"
       />
-      <div class="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="mt-12 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
         <M3Card
           v-for="(member, index) in boardMembers"
           :key="member.name"
@@ -290,7 +302,7 @@ function iconForImportantDoc(icon?: string) {
         description="Quick access to the resident services people ask for most."
         size="md"
       />
-      <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div class="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-x-10 md:gap-y-8">
         <M3Card
           v-for="link in helpfulLinks"
           :key="link.title"
@@ -337,7 +349,7 @@ function iconForImportantDoc(icon?: string) {
         description="Discover the amenities and benefits that make our community a great place to call home."
         size="md"
       />
-      <div class="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:mt-14 xl:grid-cols-[repeat(auto-fit,minmax(220px,1fr))] xl:gap-7">
         <M3Card
           v-for="amenity in amenities"
           :key="amenity.title"
@@ -374,7 +386,7 @@ function iconForImportantDoc(icon?: string) {
         description="Access community guidelines, bylaws, and important forms."
         size="md"
       />
-      <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-7">
         <M3Card
           v-for="doc in documents"
           :key="doc.id"
@@ -430,9 +442,9 @@ function iconForImportantDoc(icon?: string) {
         description="Updates and reminders from the board."
         size="md"
       />
-      <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div class="mt-12 grid grid-cols-1 gap-7 md:grid-cols-3">
         <M3Card
-          v-for="update in recentCommunityUpdates"
+          v-for="update in communityUpdateTeasers"
           :key="update.id"
           variant="elevated"
           hoverable
@@ -446,11 +458,12 @@ function iconForImportantDoc(icon?: string) {
               :src="update.imageUrls[0]"
               alt=""
               class="h-36 w-full object-cover"
+              decoding="async"
               loading="lazy"
             >
           </div>
           <h3 class="mb-4 line-clamp-4 break-words text-xl font-semibold leading-snug text-slate-900 dark:text-white">
-            {{ communityUpdateHeadline(update.bodyMarkdown) }}
+            {{ update.headline }}
           </h3>
           <div class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <Icon
@@ -460,13 +473,7 @@ function iconForImportantDoc(icon?: string) {
             <span class="min-w-0 break-words">{{ update.authorDisplayName }}</span>
             <span class="text-slate-300 dark:text-slate-600">•</span>
             <time :datetime="String(update.postedAt)">
-              {{
-                new Date(update.postedAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })
-              }}
+              {{ update.postedAtLabel }}
             </time>
           </div>
           <M3Button
@@ -477,18 +484,18 @@ function iconForImportantDoc(icon?: string) {
             icon-position="right"
             class="w-full sm:w-auto"
           >
-            Read More
+            Read more
           </M3Button>
         </M3Card>
       </div>
-      <div class="mt-10 text-center">
+      <div class="mt-12 text-center md:mt-14">
         <M3Button
           variant="secondary"
           size="md"
           to="/updates"
           icon="heroicons:newspaper"
         >
-          View more
+          View all updates
         </M3Button>
       </div>
     </M3Section>
@@ -499,7 +506,7 @@ function iconForImportantDoc(icon?: string) {
       background="mesh"
       padding="lg"
     >
-      <div class="grid items-start gap-12 lg:grid-cols-2">
+      <div class="grid items-start gap-10 lg:grid-cols-2 lg:gap-14">
         <div>
           <M3Badge
             variant="soft"
@@ -515,10 +522,10 @@ function iconForImportantDoc(icon?: string) {
             Have questions or concerns? Our board members are always happy to hear from community members. Reach out and we'll get back to you as soon as possible.
           </p>
 
-          <div class="space-y-4">
+          <div class="space-y-3 sm:space-y-4">
             <NuxtLink
               to="/contact-the-board"
-              class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft transition-all hover:shadow-soft-lg dark:bg-slate-800"
+              class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft transition-all hover:shadow-soft-lg sm:p-5 dark:bg-slate-800"
             >
               <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon
@@ -535,7 +542,7 @@ function iconForImportantDoc(icon?: string) {
                 </p>
               </div>
             </NuxtLink>
-            <div class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft dark:bg-slate-800">
+            <div class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft sm:p-5 dark:bg-slate-800">
               <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon
                   name="heroicons:map-pin"

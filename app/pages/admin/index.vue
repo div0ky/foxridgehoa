@@ -18,10 +18,48 @@ const loading = computed(() => authState.status.value === 'pending')
 const user = computed(() => authState.data.value?.user)
 const profile = computed(() => profileState.data.value?.data.profile)
 const isBoard = computed(() => profile.value?.role === 'boardMember')
+
+const workspaceLinks = [
+  {
+    hint: 'PDFs surfaced on the home page',
+    label: 'Important Documents',
+    to: '/admin/documents'
+  },
+  {
+    hint: 'Short posts visible under Updates',
+    label: 'Community updates',
+    to: '/admin/quick-updates'
+  },
+  {
+    hint: 'Timeboxed notice shown site-wide',
+    label: 'Site banner',
+    to: '/admin/banner'
+  },
+  {
+    hint: 'Board and annual meetings on the public calendar',
+    label: 'HOA meetings',
+    to: '/admin/meetings'
+  },
+  {
+    hint: 'Recipients for messages from Contact the Board',
+    label: 'Board contact',
+    to: '/admin/contact-routing'
+  },
+  {
+    hint: 'Add management, board, or other operators',
+    label: 'Invite user',
+    to: '/admin/invite'
+  },
+  {
+    hint: 'Display name shown on posts, password changes',
+    label: 'Account',
+    to: '/admin/account'
+  }
+] as const
 </script>
 
 <template>
-  <div class="mx-auto max-w-xl">
+  <div class="mx-auto w-full min-w-0 max-w-2xl space-y-6">
     <UCard>
       <template #header>
         <div>
@@ -29,7 +67,7 @@ const isBoard = computed(() => profile.value?.role === 'boardMember')
             HOA administration
           </h1>
           <p class="mt-1 text-sm text-muted">
-            Convex operator session verified.
+            Signed-in tools for the Fox Ridge HOA site and resident-facing pages.
           </p>
         </div>
       </template>
@@ -79,32 +117,61 @@ const isBoard = computed(() => profile.value?.role === 'boardMember')
           color="neutral"
           variant="outline"
           title="Missing HOA profile"
-          description="You are signed in, but no operator profile row exists."
+          description="You can sign in, but your account is not linked to an operator profile yet. Ask a board member or site owner to provision access."
         />
 
         <div
-          v-if="isBoard"
-          class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap"
+          v-if="user && profile && !isBoard"
+          class="mt-6 rounded-lg bg-elevated/50 p-4 text-sm text-muted"
         >
-          <UButton
-            color="primary"
-            icon="i-lucide-files"
-            class="w-full sm:w-auto"
-            label="Important Documents"
-            leading
-            size="lg"
-            to="/admin/documents"
-          />
-          <UButton
-            color="neutral"
-            icon="i-lucide-user-plus"
-            class="w-full sm:w-auto"
-            label="Invite user"
-            leading
-            size="lg"
-            to="/admin/invite"
-            variant="outline"
-          />
+          <p class="font-medium text-highlighted">
+            Limited administrator access
+          </p>
+          <p class="mt-2">
+            Publishing controls (documents, meetings, banners, invitations) are limited to board members. You can still use Account to update your password, email, or the name shown on signed content.
+          </p>
+          <div class="mt-4">
+            <UButton
+              color="primary"
+              icon="i-lucide-user"
+              label="Open account settings"
+              size="lg"
+              to="/admin/account"
+            />
+          </div>
+        </div>
+
+        <div
+          v-if="user && profile && isBoard"
+          class="mt-6"
+        >
+          <p class="text-sm text-muted">
+            Residents see changes on the public site quickly after you publish. Work from the checklist below or the matching items in the sidebar.
+          </p>
+
+          <nav
+            aria-label="Publishing areas"
+            class="mt-4"
+          >
+            <ul class="divide-y divide-default rounded-xl border border-default">
+              <li
+                v-for="item in workspaceLinks"
+                :key="item.to"
+              >
+                <NuxtLink
+                  class="flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-elevated/60 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                  :to="item.to"
+                >
+                  <span class="font-medium text-highlighted">
+                    {{ item.label }}
+                  </span>
+                  <span class="text-xs text-muted sm:text-end sm:text-sm">
+                    {{ item.hint }}
+                  </span>
+                </NuxtLink>
+              </li>
+            </ul>
+          </nav>
         </div>
       </template>
     </UCard>

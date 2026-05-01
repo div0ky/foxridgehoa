@@ -136,10 +136,9 @@ async function submitClear() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-xl">
+  <div class="mx-auto w-full min-w-0 max-w-xl space-y-6">
     <UAlert
       v-if="!loadingProfile && !isBoardMember"
-      class="mb-6"
       color="warning"
       variant="soft"
       title="Restricted"

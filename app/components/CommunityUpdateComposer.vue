@@ -188,7 +188,7 @@ async function submitPublish() {
 </script>
 
 <template>
-  <div class="community-update-composer">
+  <div class="community-update-composer min-w-0 w-full">
     <div
       v-if="pendingAuth"
       aria-live="polite"
@@ -209,7 +209,8 @@ async function submitPublish() {
       <template #actions>
         <UButton
           color="primary"
-          size="sm"
+          class="w-full sm:w-auto"
+          size="md"
           to="/admin/account"
         >
           Open Account settings
@@ -229,7 +230,7 @@ async function submitPublish() {
         <UInput
           v-model="postDateTime"
           type="datetime-local"
-          class="w-full max-w-sm"
+          class="w-full max-w-full sm:max-w-sm"
         />
       </UFormField>
 
