@@ -154,7 +154,7 @@ withDefaults(defineProps<Props>(), {
       }"
     >
       <div>{{ authorDisplayName }}</div>
-      <div>foxridgehoa.com/updates</div>
+      <div>thefoxridgehoa.org/updates</div>
     </div>
   </div>
 </template>

@@ -58,7 +58,7 @@ if (error.value || (!pending.value && !update.value)) {
 const authorHandle = computed(() => {
   const name = update.value?.authorDisplayName ?? 'Fox Ridge HOA'
   const compact = name.replace(/[^a-z0-9]/gi, '').toLowerCase()
-  return `@${compact || 'foxridgehoa'}`
+  return `@${compact || 'thefoxridgehoa'}`
 })
 
 const authorDisplayName = computed(() => update.value?.authorDisplayName ?? 'Fox Ridge HOA')

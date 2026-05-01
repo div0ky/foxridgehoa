@@ -53,10 +53,10 @@ Please review [the agenda](https://example.com) before **Thursday**.
   test('builds canonical update URLs without duplicate slashes', () => {
     expect(
       getCommunityUpdateCanonicalUrl({
-        siteUrl: 'https://foxridgehoa.com/',
+        siteUrl: 'https://thefoxridgehoa.org/',
         updateId: 'abc123'
       })
-    ).toBe('https://foxridgehoa.com/updates/abc123')
+    ).toBe('https://thefoxridgehoa.org/updates/abc123')
   })
 
   test('formats posted date for social cards', () => {
