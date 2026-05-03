@@ -31,6 +31,24 @@ function truncatePreviewText(text: string, maxChars: number): string {
   return `${safeClip.trimEnd()}...`
 }
 
+/** First-line title from markdown, or `null` when there is no real heading line. */
+function communityUpdateHeadlineForDedup(markdown: string, maxChars = 88): string | null {
+  const line = markdown.split('\n').find(l => l.trim()) ?? ''
+  const stripped = line.replace(/^#+\s*/, '').trim()
+  const head = stripped.slice(0, maxChars).trim()
+  return head.length > 0 ? head : null
+}
+
+function stripLeadingDuplicateHeadline(plainText: string, headline: string): string {
+  const escaped = headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = new RegExp(`^${escaped}\\s*[:,—–-]?\\s*`, 'i')
+  let result = plainText.trim()
+  while (pattern.test(result))
+    result = result.replace(pattern, '').trim()
+
+  return result
+}
+
 export function communityUpdatePlainText(markdown: string): string {
   return markdown
     .replace(/```[\s\S]*?```/g, ' ')
@@ -55,19 +73,22 @@ export function getCommunityUpdateSeoTitle(
 }
 
 export function getCommunityUpdateSeoDescription(
-  {
-    authorDisplayName,
-    bodyMarkdown,
-    maxChars = 180
-  }: {
+  args: {
     authorDisplayName: string
     bodyMarkdown: string
     maxChars?: number
   }
 ): string {
+  const { bodyMarkdown, maxChars = 180 } = args
   const plainText = communityUpdatePlainText(bodyMarkdown)
-  const preview = plainText.length > 0 ? plainText : DEFAULT_SEO_DESCRIPTION
-  return truncatePreviewText(`Update from ${authorDisplayName}: ${preview}`, maxChars)
+  const headline = communityUpdateHeadlineForDedup(bodyMarkdown)
+  const withoutDuplicateTitle = headline
+    ? stripLeadingDuplicateHeadline(plainText, headline)
+    : plainText
+  const preview = withoutDuplicateTitle.length > 0
+    ? withoutDuplicateTitle
+    : (plainText.length > 0 ? plainText : DEFAULT_SEO_DESCRIPTION)
+  return truncatePreviewText(preview, maxChars)
 }
 
 export function getCommunityUpdateCanonicalUrl(
