@@ -31,14 +31,35 @@ Please review [the agenda](https://example.com) before **Thursday**.
     ).toBe('Meeting reminder Please review the agenda before Thursday. pool gate Bring questions')
   })
 
-  test('builds bounded descriptions with author context', () => {
+  test('builds bounded descriptions from body text without repeating the headline', () => {
+    expect(
+      getCommunityUpdateSeoDescription({
+        authorDisplayName: 'Fox Ridge Board',
+        bodyMarkdown: '# Pool keys\n\nPool key pickup starts Saturday morning at the clubhouse.',
+        maxChars: 40
+      })
+    ).toBe('Pool key pickup starts Saturday morning...')
+  })
+
+  test('builds bounded plain descriptions when there is no heading line', () => {
     expect(
       getCommunityUpdateSeoDescription({
         authorDisplayName: 'Fox Ridge Board',
         bodyMarkdown: 'Pool key pickup starts Saturday morning at the clubhouse.',
-        maxChars: 64
+        maxChars: 40
       })
-    ).toBe('Update from Fox Ridge Board: Pool key pickup starts Saturday...')
+    ).toBe('Pool key pickup starts Saturday morning...')
+  })
+
+  test('drops a leading plain-text repeat of the headline before truncating', () => {
+    expect(
+      getCommunityUpdateSeoDescription({
+        authorDisplayName: 'Aaron Spurlock',
+        bodyMarkdown:
+          '# Playground Updates / Fence Cleaning\n\nPlayground Updates / Fence Cleaning At this time, the playground is fine.',
+        maxChars: 80
+      })
+    ).toBe('At this time, the playground is fine.')
   })
 
   test('falls back when markdown has no readable text', () => {
@@ -47,7 +68,7 @@ Please review [the agenda](https://example.com) before **Thursday**.
         authorDisplayName: 'Fox Ridge HOA',
         bodyMarkdown: '   '
       })
-    ).toBe('Update from Fox Ridge HOA: News and reminders from the Fox Ridge HOA board.')
+    ).toBe('News and reminders from the Fox Ridge HOA board.')
   })
 
   test('builds canonical update URLs without duplicate slashes', () => {
