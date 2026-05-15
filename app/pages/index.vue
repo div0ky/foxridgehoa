@@ -41,7 +41,14 @@ const communityUpdateTeasers = computed(() =>
 const currentMonth = new Date().getMonth()
 const shouldShowHoaPaymentReminder = [0, 1, 11].includes(currentMonth)
 
-const boardMembers = [
+type BoardMemberCard = {
+  imageSrc?: string
+  name: string
+  role: string
+  termYear: number
+}
+
+const boardMembers: BoardMemberCard[] = [
   {
     name: 'Tim Soberg',
     role: 'President',
@@ -53,6 +60,7 @@ const boardMembers = [
     termYear: 2027
   },
   {
+    imageSrc: '/images/board/aaron-spurlock.png',
     name: 'Aaron Spurlock',
     role: 'Board Member',
     termYear: 2028
@@ -271,8 +279,20 @@ function iconForImportantDoc(icon?: string) {
           :class="`stagger-${index + 1}`"
         >
           <div class="mb-4 flex items-start justify-between">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800">
+            <div
+              class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800"
+            >
+              <img
+                v-if="member.imageSrc"
+                :src="member.imageSrc"
+                :alt="`${member.name}, ${member.role}`"
+                width="56"
+                height="56"
+                class="h-full w-full object-cover object-center"
+                decoding="async"
+              >
               <Icon
+                v-else
                 name="heroicons:user"
                 class="h-7 w-7 text-slate-500 dark:text-slate-400"
               />
