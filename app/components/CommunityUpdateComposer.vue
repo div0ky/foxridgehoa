@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Id } from '~~/convex/_generated/dataModel'
 
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
 import { postImageToConvexUploadUrl } from '~/utils/convexImageUpload'
@@ -13,9 +13,17 @@ interface Props {
   canPublish?: boolean
   /** Board member missing name — prompt only */
   needsDisplayName?: boolean
+  /** Update being edited (optional) */
+  update?: {
+    id: Id<'communityUpdates'>
+    bodyMarkdown: string
+    postedAt: number
+    images: Array<{ storageId: Id<'_storage'> }>
+    imageUrls: Array<string>
+  }
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   canPublish: false,
   needsDisplayName: false,
   pendingAuth: false
@@ -23,12 +31,21 @@ withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   published: []
+  updated: []
 }>()
 
 const toast = useToast()
 
+interface ComposerImage {
+  id: string
+  type: 'existing' | 'new'
+  file?: File
+  storageId?: Id<'_storage'>
+  url: string
+}
+
 const bodyMarkdown = ref('# Community update\n\nWrite your message in **Markdown**.')
-const pendingFiles = ref<File[]>([])
+const images = ref<ComposerImage[]>([])
 const postDateTime = ref(toLocalDateTimeInputValue(new Date()))
 const publishing = ref(false)
 
@@ -103,6 +120,35 @@ const editorToolbarItems = [
 
 const generateUploadUrl = useConvexMutation(api.communityUpdates.generateCommunityUpdateImageUploadUrl)
 const createUpdate = useConvexMutation(api.communityUpdates.createCommunityUpdate)
+const updateUpdate = useConvexMutation(api.communityUpdates.updateCommunityUpdate)
+
+watch(
+  () => props.update,
+  (newVal) => {
+    if (newVal) {
+      bodyMarkdown.value = newVal.bodyMarkdown
+      postDateTime.value = toLocalDateTimeInputValue(new Date(newVal.postedAt))
+      images.value = newVal.images.map((img, i) => ({
+        id: img.storageId,
+        storageId: img.storageId,
+        type: 'existing',
+        url: newVal.imageUrls[i] ?? ''
+      }))
+    } else {
+      bodyMarkdown.value = '# Community update\n\nWrite your message in **Markdown**.'
+      postDateTime.value = toLocalDateTimeInputValue(new Date())
+      images.value = []
+    }
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  for (const img of images.value) {
+    if (img.type === 'new' && img.url.startsWith('blob:'))
+      URL.revokeObjectURL(img.url)
+  }
+})
 
 function toLocalDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0')
@@ -121,12 +167,27 @@ function getPostDateTimeMs(): null | number {
 function onFileInputChange(event: Event) {
   const input = event.target as HTMLInputElement
   const picked = input.files ? Array.from(input.files) : []
-  pendingFiles.value = [...pendingFiles.value, ...picked].slice(0, 3)
+  const remainingSlots = 3 - images.value.length
+  const toAdd = picked.slice(0, remainingSlots)
+
+  for (const file of toAdd) {
+    const url = URL.createObjectURL(file)
+    images.value.push({
+      file,
+      id: Math.random().toString(36).substring(7),
+      type: 'new',
+      url
+    })
+  }
   input.value = ''
 }
 
-function removePendingFile(index: number) {
-  pendingFiles.value = pendingFiles.value.filter((_, i) => i !== index)
+function removeImage(index: number) {
+  const img = images.value[index]
+  if (img && img.type === 'new' && img.url.startsWith('blob:'))
+    URL.revokeObjectURL(img.url)
+
+  images.value = images.value.filter((_, i) => i !== index)
 }
 
 async function submitPublish() {
@@ -153,33 +214,55 @@ async function submitPublish() {
   publishing.value = true
   try {
     const storageIds: Id<'_storage'>[] = []
-    for (const file of pendingFiles.value) {
-      const uploadUrl = await generateUploadUrl.execute({}) as string
-      const storageId = await postImageToConvexUploadUrl(uploadUrl, file)
-      storageIds.push(storageId as Id<'_storage'>)
+    for (const img of images.value) {
+      if (img.type === 'existing' && img.storageId) {
+        storageIds.push(img.storageId)
+      } else if (img.type === 'new' && img.file) {
+        const uploadUrl = await generateUploadUrl.execute({}) as string
+        const storageId = await postImageToConvexUploadUrl(uploadUrl, img.file)
+        storageIds.push(storageId as Id<'_storage'>)
+      }
     }
 
-    await createUpdate.execute({
-      bodyMarkdown: bodyMarkdown.value,
-      imageStorageIds: storageIds.length > 0 ? storageIds : undefined,
-      postedAt
-    })
+    if (props.update) {
+      await updateUpdate.execute({
+        bodyMarkdown: md,
+        imageStorageIds: storageIds,
+        postedAt,
+        updateId: props.update.id
+      })
+      toast.add({
+        color: 'success',
+        description: 'The update is saved.',
+        title: 'Saved'
+      })
+      emit('updated')
+    } else {
+      await createUpdate.execute({
+        bodyMarkdown: md,
+        imageStorageIds: storageIds.length > 0 ? storageIds : undefined,
+        postedAt
+      })
 
-    pendingFiles.value = []
-    bodyMarkdown.value = '# Community update\n\n'
-    postDateTime.value = toLocalDateTimeInputValue(new Date())
-    toast.add({
-      color: 'success',
-      description: 'The update is published.',
-      title: 'Published'
-    })
-    emit('published')
+      bodyMarkdown.value = '# Community update\n\n'
+      postDateTime.value = toLocalDateTimeInputValue(new Date())
+      images.value = []
+
+      toast.add({
+        color: 'success',
+        description: 'The update is published.',
+        title: 'Published'
+      })
+      emit('published')
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Publish failed.'
+    const isEdit = !!props.update
+    const actionLabel = isEdit ? 'save' : 'publish'
+    const message = error instanceof Error ? error.message : `${actionLabel} failed.`
     toast.add({
       color: 'error',
       description: message,
-      title: 'Could not publish'
+      title: `Could not ${actionLabel}`
     })
   } finally {
     publishing.value = false
@@ -256,7 +339,7 @@ async function submitPublish() {
         </template>
       </UEditor>
 
-      <div class="space-y-2">
+      <div class="space-y-4">
         <UFormField
           label="Images (optional)"
           name="community-update-images"
@@ -264,7 +347,7 @@ async function submitPublish() {
         >
           <UInput
             accept="image/*"
-            :disabled="pendingFiles.length >= 3"
+            :disabled="images.length >= 3"
             multiple
             type="file"
             class="w-full max-w-md"
@@ -273,27 +356,37 @@ async function submitPublish() {
         </UFormField>
 
         <div
-          v-if="pendingFiles.length > 0"
-          class="flex flex-wrap gap-2"
+          v-if="images.length > 0"
+          class="grid grid-cols-3 gap-4 max-w-md"
         >
-          <UBadge
-            v-for="(file, i) in pendingFiles"
-            :key="`${file.name}-${i}`"
-            class="max-w-full"
-            color="neutral"
-            variant="subtle"
+          <div
+            v-for="(img, i) in images"
+            :key="img.id"
+            class="group relative aspect-square w-full overflow-hidden rounded-lg border border-default bg-muted"
           >
-            <span class="inline-block max-w-48 truncate align-bottom">
-              {{ file.name }}
-            </span>
-            <button
-              type="button"
-              class="ml-1 shrink-0 text-muted underline"
-              @click="removePendingFile(i)"
+            <img
+              :src="img.url"
+              alt=""
+              class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             >
-              Remove
-            </button>
-          </UBadge>
+            <div class="absolute inset-0 bg-slate-950/20 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center justify-center">
+              <UButton
+                color="error"
+                icon="i-lucide-trash-2"
+                size="sm"
+                variant="solid"
+                class="rounded-full shadow-lg"
+                aria-label="Remove image"
+                @click="removeImage(i)"
+              />
+            </div>
+            <span
+              class="absolute bottom-1 left-1 rounded px-1 text-[10px] font-medium leading-none shadow-sm"
+              :class="img.type === 'existing' ? 'bg-slate-900/80 text-slate-100' : 'bg-mint-500/90 text-slate-900'"
+            >
+              {{ img.type === 'existing' ? 'Saved' : 'New' }}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -303,7 +396,7 @@ async function submitPublish() {
         :loading="publishing"
         @click="submitPublish"
       >
-        Publish update
+        {{ update ? 'Save update' : 'Publish update' }}
       </UButton>
     </div>
   </div>

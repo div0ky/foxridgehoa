@@ -148,19 +148,22 @@ export const listCommunityUpdatesAdmin = query({
     const all = await ctx.db.query('communityUpdates').collect()
     all.sort((a, b) => (b.postedAt ?? b.createdAt) - (a.postedAt ?? a.createdAt))
 
+    const updates = await Promise.all(
+      all.map(async doc => ({
+        authorDisplayName: doc.authorDisplayName,
+        bodyMarkdown: doc.bodyMarkdown,
+        createdAt: doc.createdAt,
+        id: doc._id,
+        images: doc.images,
+        imageUrls: await imageUrlsForDoc(ctx, doc.images),
+        postedAt: doc.postedAt ?? doc.createdAt,
+        postedByAuthUserId: doc.postedByAuthUserId,
+        updatedAt: doc.updatedAt
+      }))
+    )
+
     return {
-      data: {
-        updates: all.map(doc => ({
-          authorDisplayName: doc.authorDisplayName,
-          bodyMarkdown: doc.bodyMarkdown,
-          createdAt: doc.createdAt,
-          id: doc._id,
-          images: doc.images,
-          postedAt: doc.postedAt ?? doc.createdAt,
-          postedByAuthUserId: doc.postedByAuthUserId,
-          updatedAt: doc.updatedAt
-        }))
-      },
+      data: { updates },
       ok: true as const
     }
   }
@@ -244,5 +247,59 @@ export const deleteCommunityUpdate = mutation({
     await ctx.db.delete(args.updateId)
 
     return { ok: true as const }
+  }
+})
+
+export const updateCommunityUpdate = mutation({
+  args: {
+    bodyMarkdown: v.string(),
+    imageStorageIds: v.optional(v.array(v.id('_storage'))),
+    postedAt: v.number(),
+    updateId: v.id('communityUpdates')
+  },
+  handler: async (ctx, args) => {
+    await requireBoardMember(ctx)
+
+    const doc = await ctx.db.get(args.updateId)
+    if (!doc)
+      throw new ConvexError('Update not found.')
+
+    const trimmed = args.bodyMarkdown.trim()
+    if (!trimmed)
+      throw new ConvexError('Update content is required.')
+
+    if (trimmed.length > MAX_BODY_MARKDOWN_CHARS)
+      throw new ConvexError(`Update is too long (${MAX_BODY_MARKDOWN_CHARS} characters max).`)
+
+    if (!Number.isFinite(args.postedAt))
+      throw new ConvexError('Post date and time is invalid.')
+
+    const storageIds = args.imageStorageIds ?? []
+    if (storageIds.length > MAX_IMAGES_PER_UPDATE)
+      throw new ConvexError(`At most ${MAX_IMAGES_PER_UPDATE} images per update.`)
+
+    for (const storageId of storageIds)
+      await assertImageBlob(ctx, storageId)
+
+    // Clean up images that are no longer referenced
+    const newStorageIds = new Set(storageIds)
+    for (const { storageId } of doc.images) {
+      if (!newStorageIds.has(storageId))
+        await ctx.storage.delete(storageId)
+    }
+
+    const now = Date.now()
+
+    await ctx.db.patch(args.updateId, {
+      bodyMarkdown: trimmed,
+      images: storageIds.map(storageId => ({ storageId })),
+      postedAt: args.postedAt,
+      updatedAt: now
+    })
+
+    return {
+      data: { updateId: args.updateId },
+      ok: true as const
+    }
   }
 })
