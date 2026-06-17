@@ -105,3 +105,28 @@ test('getCommunityUpdatePublic returns null after doc deleted', async () => {
   expect(result.ok).toBe(true)
   expect(result.data.update).toBeNull()
 })
+
+test('updateCommunityUpdate throws when unauthenticated', async () => {
+  const t = convexTest(schema, modules)
+
+  let updateId!: import('./_generated/dataModel').Id<'communityUpdates'>
+  await t.run(async (ctx) => {
+    updateId = await ctx.db.insert('communityUpdates', {
+      authorDisplayName: 'Original Author',
+      bodyMarkdown: 'Original content',
+      createdAt: 100,
+      images: [],
+      postedAt: 100,
+      postedByAuthUserId: 'user_orig',
+      updatedAt: 100
+    })
+  })
+
+  await expect(
+    t.mutation(api.communityUpdates.updateCommunityUpdate, {
+      bodyMarkdown: 'Updated content',
+      postedAt: 200,
+      updateId
+    })
+  ).rejects.toThrow(/unauthenticated/i)
+})

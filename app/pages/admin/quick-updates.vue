@@ -50,6 +50,20 @@ const composerPendingAuth = computed(() => loadingProfile.value || loadingAuthUs
 
 const deletingId = ref<Id<'communityUpdates'> | null>(null)
 
+interface AdminUpdate {
+  authorDisplayName: string
+  bodyMarkdown: string
+  createdAt: number
+  id: Id<'communityUpdates'>
+  images: Array<{ storageId: Id<'_storage'> }>
+  imageUrls: Array<string>
+  postedAt: number
+  postedByAuthUserId: string
+  updatedAt: number
+}
+
+const editingUpdate = ref<AdminUpdate | null>(null)
+
 async function submitDelete(id: Id<'communityUpdates'>) {
   if (!window.confirm('Delete this community update?'))
     return
@@ -162,6 +176,15 @@ function previewSnippet(text: string, max = 160) {
                 View
               </UButton>
               <UButton
+                color="neutral"
+                class="w-full sm:w-auto"
+                size="sm"
+                variant="outline"
+                @click="editingUpdate = u"
+              >
+                Edit
+              </UButton>
+              <UButton
                 color="error"
                 class="w-full sm:w-auto"
                 size="sm"
@@ -198,5 +221,23 @@ function previewSnippet(text: string, max = 160) {
         </div>
       </div>
     </UCard>
+
+    <UModal
+      :open="editingUpdate !== null"
+      title="Edit community update"
+      description="Modify the post date, markdown content, or images."
+      :ui="{ content: 'sm:max-w-2xl' }"
+      @update:open="(val) => { if (!val) editingUpdate = null }"
+    >
+      <template #body>
+        <CommunityUpdateComposer
+          v-if="editingUpdate"
+          :can-publish="!loadingProfile && isBoardMember && !loadingAuthUser && displayNameConfigured"
+          :needs-display-name="!loadingProfile && isBoardMember && !loadingAuthUser && !displayNameConfigured"
+          :update="editingUpdate"
+          @updated="editingUpdate = null"
+        />
+      </template>
+    </UModal>
   </div>
 </template>
