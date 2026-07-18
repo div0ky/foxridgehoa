@@ -4,7 +4,6 @@ import { computed, ref } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
 import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttachmentGallery.vue'
-import CommunityUpdateComposer from '~/components/CommunityUpdateComposer.vue'
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
 
 const {
@@ -16,6 +15,13 @@ const {
   state: communityUpdatesQueryState,
   updates
 } = await usePaginatedPublicCommunityUpdates(10)
+
+useSeoMeta({
+  description: 'News, reminders, and community updates from the Fox Ridge HOA board.',
+  ogDescription: 'News, reminders, and community updates from the Fox Ridge HOA board.',
+  ogTitle: 'Community Updates · Fox Ridge HOA',
+  title: 'Community Updates · Fox Ridge HOA'
+})
 
 const authState = await useConvexQuery(api.auth.getCurrentUser, {})
 const profileState = await useConvexQuery(api.operatorProfiles.getMyOperatorProfile, {})
@@ -96,7 +102,7 @@ function isoDateTime(ms: number): string {
           class="mb-4 inline-flex"
         >
           <Icon
-            name="heroicons:newspaper"
+            name="lucide:newspaper"
             class="mr-1.5 h-4 w-4"
           />
           Community Updates
@@ -119,7 +125,7 @@ function isoDateTime(ms: number): string {
           <div class="mb-6 flex flex-wrap items-start gap-3">
             <div class="rounded-xl bg-primary-100 p-2 dark:bg-primary-900/60">
               <Icon
-                name="heroicons:pencil-square"
+                name="lucide:square-pen"
                 class="h-6 w-6 text-primary-700 dark:text-primary-300"
               />
             </div>
@@ -142,7 +148,7 @@ function isoDateTime(ms: number): string {
                 variant="secondary"
                 size="sm"
                 to="/admin/account"
-                icon="heroicons:user-circle"
+                icon="lucide:circle-user-round"
               >
                 Account
               </M3Button>
@@ -150,13 +156,13 @@ function isoDateTime(ms: number): string {
                 variant="ghost"
                 size="sm"
                 to="/admin/quick-updates"
-                icon="heroicons:cog-6-tooth"
+                icon="lucide:settings"
               >
                 Admin tools
               </M3Button>
             </div>
           </div>
-          <CommunityUpdateComposer
+          <LazyCommunityUpdateComposer
             :can-publish="displayNameConfigured"
             :needs-display-name="!displayNameConfigured"
             @published="refresh"
@@ -182,7 +188,7 @@ function isoDateTime(ms: number): string {
           class="mx-auto mt-6"
           variant="secondary"
           size="md"
-          icon="heroicons:arrow-path"
+          icon="lucide:refresh-cw"
           @click="refresh"
         >
           Try again
@@ -204,7 +210,7 @@ function isoDateTime(ms: number): string {
         <div class="mb-4 flex justify-center">
           <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
             <Icon
-              name="heroicons:document-text"
+              name="lucide:file-text"
               class="h-8 w-8 text-slate-400"
             />
           </div>
@@ -229,7 +235,7 @@ function isoDateTime(ms: number): string {
           >
             <div class="absolute left-0 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-600 shadow-md shadow-primary-500/25 ring-4 ring-surface-dim dark:ring-surface-dim">
               <Icon
-                name="heroicons:user"
+                name="lucide:user"
                 class="h-4 w-4 text-white"
               />
             </div>
@@ -253,7 +259,7 @@ function isoDateTime(ms: number): string {
                     class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-800 dark:text-slate-300 dark:hover:border-primary-900 dark:hover:bg-primary-950/50 dark:hover:text-primary-300"
                   >
                     <Icon
-                      name="heroicons:link"
+                      name="lucide:link"
                       class="h-4 w-4"
                     />
                     Open / Share
@@ -295,7 +301,7 @@ function isoDateTime(ms: number): string {
           <M3Button
             variant="secondary"
             size="md"
-            icon="heroicons:arrow-down"
+            icon="lucide:arrow-down"
             @click="loadMore"
           >
             Load older updates

@@ -6,6 +6,10 @@ import { mutation, query } from './_generated/server'
 import { requireBoardMember } from './authz/requireBoardMember'
 
 const MAX_FILES_PER_DOCUMENT = 10
+const MAX_DOCUMENTS = 100
+const MAX_TITLE_CHARS = 160
+const MAX_DESCRIPTION_CHARS = 2_000
+const MAX_FILE_LABEL_CHARS = 160
 /** Convex storage single-file size guidance — stay below platform limits. */
 const MAX_PDF_BYTES = 20 * 1024 * 1024
 
@@ -45,11 +49,26 @@ function assertFilesLength(count: number): void {
     throw new ConvexError(`At most ${MAX_FILES_PER_DOCUMENT} PDFs per document.`)
 }
 
+function assertTextLength(value: string, maximum: number, fieldName: string): void {
+  if (value.length > maximum)
+    throw new ConvexError(`${fieldName} must be at most ${maximum} characters.`)
+}
+
+function assertUniqueFileStorageIds(
+  files: Array<{ storageId: Id<'_storage'> }>
+): void {
+  const storageIds = files.map(file => file.storageId)
+  if (new Set(storageIds).size !== storageIds.length)
+    throw new ConvexError('The same PDF cannot be attached more than once.')
+}
+
 export const listImportantDocumentsPublic = query({
   args: {},
   handler: async (ctx) => {
-    const docs = await ctx.db.query('importantDocuments').collect()
-    docs.sort((a, b) => a.sortOrder - b.sortOrder)
+    const docs = await ctx.db
+      .query('importantDocuments')
+      .withIndex('by_sortOrder')
+      .take(MAX_DOCUMENTS)
 
     const documents = await Promise.all(
       docs.map(async (doc) => {
@@ -79,8 +98,10 @@ export const listImportantDocumentsAdmin = query({
   handler: async (ctx) => {
     await requireBoardMember(ctx)
 
-    const docs = await ctx.db.query('importantDocuments').collect()
-    docs.sort((a, b) => a.sortOrder - b.sortOrder)
+    const docs = await ctx.db
+      .query('importantDocuments')
+      .withIndex('by_sortOrder')
+      .take(MAX_DOCUMENTS)
 
     return {
       data: {
@@ -117,21 +138,27 @@ export const createImportantDocument = mutation({
     await requireBoardMember(ctx)
 
     assertFilesLength(args.files.length)
+    assertUniqueFileStorageIds(args.files)
 
     const trimmedTitle = args.title.trim()
     const trimmedDescription = args.description.trim()
     if (!trimmedTitle || !trimmedDescription)
       throw new ConvexError('Title and description are required.')
+    assertTextLength(trimmedTitle, MAX_TITLE_CHARS, 'Title')
+    assertTextLength(trimmedDescription, MAX_DESCRIPTION_CHARS, 'Description')
 
     for (const file of args.files) {
       const label = file.label.trim()
       if (!label)
         throw new ConvexError('Each PDF needs a label.')
+      assertTextLength(label, MAX_FILE_LABEL_CHARS, 'PDF label')
 
       await assertPdfStorage(ctx, file.storageId)
     }
 
-    const existing = await ctx.db.query('importantDocuments').collect()
+    const existing = await ctx.db.query('importantDocuments').take(MAX_DOCUMENTS)
+    if (existing.length >= MAX_DOCUMENTS)
+      throw new ConvexError(`At most ${MAX_DOCUMENTS} important documents are allowed.`)
     const maxOrder = existing.reduce((max, d) => Math.max(max, d.sortOrder), -1)
 
     const files = args.files.map(file => ({
@@ -171,6 +198,7 @@ export const updateImportantDocumentMeta = mutation({
       const t = args.title.trim()
       if (!t)
         throw new ConvexError('Title cannot be empty.')
+      assertTextLength(t, MAX_TITLE_CHARS, 'Title')
       patch.title = t
     }
 
@@ -178,6 +206,7 @@ export const updateImportantDocumentMeta = mutation({
       const d = args.description.trim()
       if (!d)
         throw new ConvexError('Description cannot be empty.')
+      assertTextLength(d, MAX_DESCRIPTION_CHARS, 'Description')
       patch.description = d
     }
 
@@ -206,10 +235,13 @@ export const appendFilesToImportantDocument = mutation({
       throw new ConvexError('Add at least one PDF.')
 
     assertFilesLength(doc.files.length + args.files.length)
+    assertUniqueFileStorageIds([...doc.files, ...args.files])
 
     for (const file of args.files) {
-      if (!file.label.trim())
+      const label = file.label.trim()
+      if (!label)
         throw new ConvexError('Each PDF needs a label.')
+      assertTextLength(label, MAX_FILE_LABEL_CHARS, 'PDF label')
 
       await assertPdfStorage(ctx, file.storageId)
     }
@@ -270,6 +302,12 @@ export const replaceFileOnImportantDocument = mutation({
     if (idx === -1)
       throw new ConvexError('That file is not part of this document.')
 
+    if (args.newStorageId === args.oldStorageId)
+      return { ok: true as const }
+
+    if (doc.files.some(file => file.storageId === args.newStorageId))
+      throw new ConvexError('The replacement PDF is already attached to this document.')
+
     await assertPdfStorage(ctx, args.newStorageId)
 
     const prev = doc.files[idx]!
@@ -320,7 +358,9 @@ export const reorderImportantDocuments = mutation({
     if (unique.size !== args.orderedDocumentIds.length)
       throw new ConvexError('Duplicate entries in order.')
 
-    const all = await ctx.db.query('importantDocuments').collect()
+    const all = await ctx.db.query('importantDocuments').take(MAX_DOCUMENTS + 1)
+    if (all.length > MAX_DOCUMENTS)
+      throw new ConvexError('Too many documents to reorder safely.')
     if (args.orderedDocumentIds.length !== all.length)
       throw new ConvexError('Order must include every document.')
 

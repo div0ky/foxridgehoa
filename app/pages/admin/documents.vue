@@ -7,6 +7,7 @@ import { api } from '~~/convex/_generated/api'
 import {
   defaultImportantDocumentIcon,
   importantDocumentIconOptions,
+  normalizeImportantDocumentIcon,
   type ImportantDocumentCardIcon
 } from '~/config/important-document-icons'
 import { postPdfToConvexUploadUrl } from '~/utils/convexPdfUpload'
@@ -28,8 +29,7 @@ const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
 const adminListState = await useConvexQuery(
   api.importantDocuments.listImportantDocumentsAdmin,
-  {},
-  { enabled: computed(() => isBoardMember.value) }
+  () => isBoardMember.value ? {} : 'skip'
 )
 
 const documents = computed(() => adminListState.data.value?.data.documents ?? [])
@@ -110,12 +110,12 @@ async function submitCreate() {
   try {
     const uploaded: { label: string, storageId: Id<'_storage'> }[] = []
     for (const row of rows) {
-      const uploadUrl = await generateUploadUrl.execute({}) as string
+      const uploadUrl = await generateUploadUrl({}) as string
       const storageId = await postPdfToConvexUploadUrl(uploadUrl, row.file!)
       uploaded.push({ label: row.label.trim(), storageId: storageId as Id<'_storage'> })
     }
 
-    await createDocument.execute({
+    await createDocument({
       description,
       files: uploaded,
       icon: createIcon.value || undefined,
@@ -155,7 +155,7 @@ function startEditMeta(doc: { description: string, icon?: string, id: Id<'import
   editingMetaId.value = doc.id
   editTitle.value = doc.title
   editDescription.value = doc.description
-  editIcon.value = (doc.icon as ImportantDocumentCardIcon | undefined) ?? defaultImportantDocumentIcon
+  editIcon.value = normalizeImportantDocumentIcon(doc.icon)
 }
 
 function cancelEditMeta() {
@@ -165,7 +165,7 @@ function cancelEditMeta() {
 async function saveEditMeta(documentId: Id<'importantDocuments'>) {
   savingMeta.value = true
   try {
-    await updateMeta.execute({
+    await updateMeta({
       description: editDescription.value.trim(),
       documentId,
       icon: editIcon.value,
@@ -223,10 +223,10 @@ async function submitAppend(documentId: Id<'importantDocuments'>) {
 
   appendingForId.value = documentId
   try {
-    const uploadUrl = await generateUploadUrl.execute({}) as string
+    const uploadUrl = await generateUploadUrl({}) as string
     const storageId = await postPdfToConvexUploadUrl(uploadUrl, draft.file)
 
-    await appendFiles.execute({
+    await appendFiles({
       documentId,
       files: [{ label, storageId: storageId as Id<'_storage'> }]
     })
@@ -244,7 +244,7 @@ async function submitAppend(documentId: Id<'importantDocuments'>) {
 
 async function onRemoveFile(documentId: Id<'importantDocuments'>, storageId: Id<'_storage'>) {
   try {
-    await removeFile.execute({
+    await removeFile({
       documentId,
       storageId
     })
@@ -274,10 +274,10 @@ async function onReplaceFileSelected(event: Event) {
     return
 
   try {
-    const uploadUrl = await generateUploadUrl.execute({}) as string
+    const uploadUrl = await generateUploadUrl({}) as string
     const storageId = await postPdfToConvexUploadUrl(uploadUrl, file)
 
-    await replaceFile.execute({
+    await replaceFile({
       documentId: job.documentId,
       newStorageId: storageId as Id<'_storage'>,
       oldStorageId: job.oldStorageId
@@ -295,7 +295,7 @@ async function onDeleteDocument(documentId: Id<'importantDocuments'>) {
     return
 
   try {
-    await deleteDocument.execute({ documentId })
+    await deleteDocument({ documentId })
     toast.add({ color: 'success', title: 'Document deleted' })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Delete failed.'
@@ -316,7 +316,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
   next[swap] = temp
 
   try {
-    await reorderDocuments.execute({
+    await reorderDocuments({
       orderedDocumentIds: next
     })
     toast.add({ color: 'success', title: 'Order updated' })

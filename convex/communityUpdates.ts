@@ -9,12 +9,21 @@ import { authComponent } from './auth'
 import { requireBoardMember } from './authz/requireBoardMember'
 
 const MAX_BODY_MARKDOWN_CHARS = 32_000
+const MAX_AUTHOR_NAME_CHARS = 160
+const MAX_ADMIN_LIST = 250
 const MAX_IMAGES_PER_UPDATE = 3
 const MAX_PUBLIC_LIST = 100
+const MAX_PUBLIC_PAGE = 50
 /** Keep images small for HOA micro-updates — avoid Convex storage spikes. */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-const ALLOWED_IMAGE_PREFIX = 'image/'
+const ALLOWED_IMAGE_CONTENT_TYPES = new Set([
+  'image/avif',
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp'
+])
 
 type StorageCtx = MutationCtx | QueryCtx
 
@@ -34,12 +43,26 @@ async function assertImageBlob(
   if (!meta)
     throw new ConvexError('Uploaded image not found. Try uploading again.')
 
-  const ct = meta.contentType?.toLowerCase() ?? ''
-  if (!ct.startsWith(ALLOWED_IMAGE_PREFIX))
-    throw new ConvexError('Only image files are allowed.')
+  const contentType = meta.contentType?.toLowerCase() ?? ''
+  if (!ALLOWED_IMAGE_CONTENT_TYPES.has(contentType))
+    throw new ConvexError('Only JPEG, PNG, WebP, GIF, or AVIF images are allowed.')
 
   if (meta.size > MAX_IMAGE_BYTES)
     throw new ConvexError('Each image must be at most 5 MB.')
+}
+
+function normalizeRequestedCount(value: number | undefined, fallback: number, maximum: number): number {
+  if (value === undefined)
+    return fallback
+  if (!Number.isFinite(value))
+    throw new ConvexError('Requested item count is invalid.')
+
+  return Math.min(maximum, Math.max(1, Math.floor(value)))
+}
+
+function assertUniqueStorageIds(storageIds: Id<'_storage'>[]): void {
+  if (new Set(storageIds).size !== storageIds.length)
+    throw new ConvexError('The same image cannot be attached more than once.')
 }
 
 async function imageUrlsForDoc(
@@ -76,10 +99,7 @@ export const listCommunityUpdatesPublic = query({
     limit: v.optional(v.number())
   },
   handler: async (ctx, args) => {
-    const capped = Math.min(
-      MAX_PUBLIC_LIST,
-      Math.max(1, args.limit ?? 50)
-    )
+    const capped = normalizeRequestedCount(args.limit, 50, MAX_PUBLIC_LIST)
 
     const docs = await ctx.db
       .query('communityUpdates')
@@ -100,11 +120,19 @@ export const paginateCommunityUpdatesPublic = query({
     paginationOpts: paginationOptsValidator
   },
   handler: async (ctx, args) => {
+    const paginationOpts = {
+      ...args.paginationOpts,
+      numItems: normalizeRequestedCount(
+        args.paginationOpts.numItems,
+        MAX_PUBLIC_PAGE,
+        MAX_PUBLIC_PAGE
+      )
+    }
     const result = await ctx.db
       .query('communityUpdates')
       .withIndex('by_postedAt')
       .order('desc')
-      .paginate(args.paginationOpts)
+      .paginate(paginationOpts)
     const updates = await Promise.all(result.page.map(doc => mapDocPublic(ctx, doc)))
 
     return {
@@ -145,8 +173,11 @@ export const listCommunityUpdatesAdmin = query({
   handler: async (ctx) => {
     await requireBoardMember(ctx)
 
-    const all = await ctx.db.query('communityUpdates').collect()
-    all.sort((a, b) => (b.postedAt ?? b.createdAt) - (a.postedAt ?? a.createdAt))
+    const all = await ctx.db
+      .query('communityUpdates')
+      .withIndex('by_postedAt')
+      .order('desc')
+      .take(MAX_ADMIN_LIST)
 
     const updates = await Promise.all(
       all.map(async doc => ({
@@ -193,6 +224,8 @@ export const createCommunityUpdate = mutation({
     const rawName = typeof user.name === 'string' ? user.name.trim() : ''
     if (!rawName)
       throw new ConvexError('Set a display name on your account before posting.')
+    if (rawName.length > MAX_AUTHOR_NAME_CHARS)
+      throw new ConvexError(`Display name must be at most ${MAX_AUTHOR_NAME_CHARS} characters.`)
 
     const trimmed = args.bodyMarkdown.trim()
     if (!trimmed)
@@ -207,6 +240,7 @@ export const createCommunityUpdate = mutation({
     const storageIds = args.imageStorageIds ?? []
     if (storageIds.length > MAX_IMAGES_PER_UPDATE)
       throw new ConvexError(`At most ${MAX_IMAGES_PER_UPDATE} images per update.`)
+    assertUniqueStorageIds(storageIds)
 
     for (const storageId of storageIds)
       await assertImageBlob(ctx, storageId)
@@ -277,6 +311,7 @@ export const updateCommunityUpdate = mutation({
     const storageIds = args.imageStorageIds ?? []
     if (storageIds.length > MAX_IMAGES_PER_UPDATE)
       throw new ConvexError(`At most ${MAX_IMAGES_PER_UPDATE} images per update.`)
+    assertUniqueStorageIds(storageIds)
 
     for (const storageId of storageIds)
       await assertImageBlob(ctx, storageId)

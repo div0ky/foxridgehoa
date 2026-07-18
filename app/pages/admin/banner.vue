@@ -19,8 +19,7 @@ const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
 const adminBannerState = await useConvexQuery(
   api.siteBanner.getAdminSiteBanner,
-  {},
-  { enabled: computed(() => isBoardMember.value) }
+  () => isBoardMember.value ? {} : 'skip'
 )
 
 const serverBanner = computed(() => adminBannerState.data.value?.data.banner ?? null)
@@ -93,7 +92,7 @@ async function submitSave() {
 
   saving.value = true
   try {
-    await setBanner.execute({ body: trimmed, showUntil })
+    await setBanner({ body: trimmed, showUntil })
     toast.add({
       color: 'success',
       description: 'The site banner is updated.',
@@ -114,7 +113,7 @@ async function submitSave() {
 async function submitClear() {
   clearing.value = true
   try {
-    await clearBanner.execute({})
+    await clearBanner({})
     body.value = ''
     showUntilInput.value = defaultShowUntilLocal()
     toast.add({
@@ -184,6 +183,7 @@ async function submitClear() {
             :rows="4"
             class="w-full"
             autoresize
+            maxlength="2000"
             placeholder="Pool closed for maintenance this weekend…"
           />
         </UFormField>

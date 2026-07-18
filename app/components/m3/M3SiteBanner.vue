@@ -14,7 +14,7 @@ defineProps<Props>()
   >
     <div class="mx-auto flex max-w-6xl items-start gap-3 px-4 py-3.5 sm:px-6 sm:py-4 lg:px-8">
       <Icon
-        name="heroicons:megaphone"
+        name="lucide:megaphone"
         class="mt-0.5 h-5 w-5 shrink-0 text-white drop-shadow-sm"
         aria-hidden="true"
       />

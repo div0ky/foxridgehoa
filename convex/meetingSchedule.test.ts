@@ -4,6 +4,7 @@ import { convexTest } from 'convex-test'
 import { expect, test } from 'vitest'
 
 import { api } from './_generated/api'
+import { validateMeetingScheduleInput } from './meetingSchedule'
 import schema from './schema'
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
@@ -73,4 +74,48 @@ test('setMeetingSchedule rejects unauthenticated caller', async () => {
       year: 2026
     })
   ).rejects.toThrow()
+})
+
+test('validateMeetingScheduleInput sorts valid board meetings', () => {
+  const year = new Date().getFullYear()
+  const boardMeetings = [
+    Date.UTC(year, 8, 1, 18),
+    Date.UTC(year, 2, 1, 18),
+    Date.UTC(year, 11, 1, 18),
+    Date.UTC(year, 5, 1, 18)
+  ]
+
+  const result = validateMeetingScheduleInput({
+    annualMeeting: Date.UTC(year, 10, 1, 18),
+    boardMeetings,
+    year
+  })
+
+  expect(result.boardMeetings).toEqual([...boardMeetings].sort((a, b) => a - b))
+})
+
+test('validateMeetingScheduleInput rejects duplicate and out-of-year dates', () => {
+  const year = new Date().getFullYear()
+  const meeting = Date.UTC(year, 2, 1, 18)
+
+  expect(() =>
+    validateMeetingScheduleInput({
+      annualMeeting: Date.UTC(year, 10, 1, 18),
+      boardMeetings: [meeting, meeting, Date.UTC(year, 5, 1, 18), Date.UTC(year, 8, 1, 18)],
+      year
+    })
+  ).toThrow(/unique/i)
+
+  expect(() =>
+    validateMeetingScheduleInput({
+      annualMeeting: Date.UTC(year + 1, 0, 2, 18),
+      boardMeetings: [
+        Date.UTC(year, 2, 1, 18),
+        Date.UTC(year, 5, 1, 18),
+        Date.UTC(year, 8, 1, 18),
+        Date.UTC(year, 11, 1, 18)
+      ],
+      year
+    })
+  ).toThrow(/within/i)
 })

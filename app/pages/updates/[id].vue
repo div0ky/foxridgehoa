@@ -36,10 +36,10 @@ const { data: queryResult, error } = await useAsyncData(
         updateId: updateId.value
       })
     } catch {
-      return {
-        data: { update: null },
-        ok: true as const
-      }
+      throw createError({
+        statusCode: 503,
+        statusMessage: 'Community updates are temporarily unavailable'
+      })
     }
   }
 )
@@ -48,7 +48,10 @@ const update = computed(() => queryResult.value?.data.update ?? null)
 const pending = computed(() => !queryResult.value && !error.value)
 const toast = useToast()
 
-if (error.value || (!pending.value && !update.value)) {
+if (error.value)
+  throw error.value
+
+if (!pending.value && !update.value) {
   throw createError({
     fatal: true,
     statusCode: 404,
@@ -116,12 +119,20 @@ async function copyUpdateLink() {
   if (!import.meta.client)
     return
 
-  await navigator.clipboard.writeText(window.location.href)
-  toast.add({
-    color: 'success',
-    description: 'The share link is copied.',
-    title: 'Copied'
-  })
+  try {
+    await navigator.clipboard.writeText(window.location.href)
+    toast.add({
+      color: 'success',
+      description: 'The share link is copied.',
+      title: 'Copied'
+    })
+  } catch {
+    toast.add({
+      color: 'warning',
+      description: 'Copy failed. Copy the address from your browser instead.',
+      title: 'Could not copy'
+    })
+  }
 }
 
 useSeoMeta({
@@ -182,7 +193,7 @@ defineOgImage('CommunityUpdate', {
     >
       <div class="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-3xl border border-slate-200/80 bg-surface-elevated px-6 py-5 text-body-md text-slate-600 shadow-soft dark:border-slate-800 dark:text-slate-300">
         <Icon
-          name="heroicons:arrow-path"
+          name="lucide:refresh-cw"
           class="h-5 w-5 shrink-0 animate-spin text-primary-500"
         />
         <p role="status">
@@ -208,7 +219,7 @@ defineOgImage('CommunityUpdate', {
             variant="ghost"
             size="sm"
             to="/updates"
-            icon="heroicons:arrow-left"
+            icon="lucide:arrow-left"
             class="mb-4 sm:mb-6"
           >
             View all updates
@@ -223,7 +234,7 @@ defineOgImage('CommunityUpdate', {
               <div class="flex min-w-0 flex-1 items-start gap-3">
                 <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-md shadow-primary-500/25">
                   <Icon
-                    name="heroicons:home-modern"
+                    name="lucide:house"
                     class="h-6 w-6 text-white"
                   />
                 </div>
@@ -234,7 +245,7 @@ defineOgImage('CommunityUpdate', {
                       {{ update.authorDisplayName }}
                     </p>
                     <Icon
-                      name="heroicons:check-badge-solid"
+                      name="lucide:badge-check"
                       class="h-5 w-5 shrink-0 text-primary-600 dark:text-primary-400"
                       aria-hidden="true"
                     />
@@ -249,7 +260,7 @@ defineOgImage('CommunityUpdate', {
               <M3Button
                 variant="secondary"
                 size="sm"
-                icon="heroicons:link"
+                icon="lucide:link"
                 class="w-full min-h-[44px] sm:mt-0 sm:w-auto sm:min-h-11 sm:self-start"
                 aria-label="Copy link to this community update"
                 @click="copyUpdateLink"

@@ -25,7 +25,6 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@vueuse/nuxt',
     '@nuxt/ui',
-    '@nuxt/content',
     '@nuxt/icon',
     '@nuxt/image',
     '@nuxtjs/color-mode',
@@ -33,7 +32,7 @@ export default defineNuxtConfig({
     'better-convex-nuxt'
   ],
 
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV === 'development' },
   css: ['~/assets/css/main.css'],
   site: {
     name: 'Fox Ridge HOA',
@@ -51,9 +50,19 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/**': { ssr: false },
+    '/**': {
+      headers: {
+        'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY'
+      },
+      ssr: true
+    },
     '/_og/**': { ssr: true },
-    '/updates/**': { ssr: true }
+    '/admin/**': { ssr: false },
+    '/auth/**': { ssr: false }
   },
 
   compatibilityDate: '2024-07-11',

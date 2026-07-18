@@ -1,3 +1,4 @@
+import { useNow } from '@vueuse/core'
 import { computed } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
@@ -9,6 +10,7 @@ export interface PublicSiteBanner {
 /** Public site alert banner (Convex reactive query). */
 export async function useSiteBanner() {
   const state = await useConvexQuery(api.siteBanner.getPublicSiteBanner, {})
+  const now = useNow({ interval: 60_000 })
 
   const banner = computed((): PublicSiteBanner | null => {
     const raw = state.data.value?.data.banner
@@ -23,7 +25,7 @@ export async function useSiteBanner() {
     const b = banner.value
     if (!b)
       return false
-    return b.showUntil > Date.now()
+    return b.showUntil > now.value.getTime()
   })
 
   return {
