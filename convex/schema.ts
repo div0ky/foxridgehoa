@@ -60,7 +60,7 @@ export default defineSchema({
     icon: v.optional(v.string()),
     sortOrder: v.number(),
     title: v.string()
-  }),
+  }).index('by_sortOrder', ['sortOrder']),
 
   meetingSchedules: defineTable({
     annualMeeting: v.number(),

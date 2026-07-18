@@ -1,5 +1,5 @@
 import type { Doc, Id } from './_generated/dataModel'
-import type { MutationCtx, QueryCtx } from './_generated/server'
+import type { ActionCtx, MutationCtx, QueryCtx } from './_generated/server'
 
 import { paginationOptsValidator } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
@@ -20,6 +20,9 @@ const MAX_STREET = 500
 const MAX_MESSAGE = 10_000
 const MAX_RECIPIENTS = 25
 const MAX_EMAIL_ERROR_LEN = 200
+const MAX_SUBMISSIONS_PAGE = 50
+const MAX_RECIPIENT_NAME = 160
+const MAX_RECIPIENT_EMAIL = 254
 
 const recipientValidator = v.object({
   displayName: v.string(),
@@ -28,6 +31,20 @@ const recipientValidator = v.object({
 
 function simpleEmailValid(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function normalizeEmailList(raw: string | undefined): string[] {
+  if (!raw)
+    return []
+
+  return [
+    ...new Set(
+      raw
+        .split(',')
+        .map(email => email.trim().toLowerCase())
+        .filter(simpleEmailValid)
+    )
+  ]
 }
 
 async function readNewestBoardContactRouting(
@@ -49,6 +66,13 @@ function normalizeRecipientInput(raw: { displayName: string, email: string }): {
   const displayName = raw.displayName.trim()
   const email = raw.email.trim().toLowerCase()
   return { displayName, email }
+}
+
+function normalizePageSize(requested: number): number {
+  if (!Number.isFinite(requested))
+    throw new ConvexError('Requested page size is invalid.')
+
+  return Math.min(MAX_SUBMISSIONS_PAGE, Math.max(1, Math.floor(requested)))
 }
 
 function assertSubmissionFields(args: {
@@ -135,7 +159,7 @@ export const submitBoardContactMessage = action({
     )
     const { submissionId } = insertResult
 
-    await ctx.runAction(internal.boardContact.deliverBoardContactEmail, { submissionId })
+    await deliverBoardContactEmailOnce(ctx, { submissionId })
 
     const doc = await ctx.runQuery(internal.boardContact.getSubmissionForDelivery, {
       submissionId
@@ -206,6 +230,10 @@ export const setBoardContactRouting = mutation({
         throw new ConvexError('Each recipient needs a display name.')
       if (!email)
         throw new ConvexError('Each recipient needs an email address.')
+      if (displayName.length > MAX_RECIPIENT_NAME)
+        throw new ConvexError(`Recipient name must be at most ${MAX_RECIPIENT_NAME} characters.`)
+      if (email.length > MAX_RECIPIENT_EMAIL)
+        throw new ConvexError(`Recipient email must be at most ${MAX_RECIPIENT_EMAIL} characters.`)
       if (!simpleEmailValid(email))
         throw new ConvexError(`Invalid email: ${email}`)
       normalized.push({ displayName, email })
@@ -258,10 +286,14 @@ export const listBoardContactSubmissions = query({
   handler: async (ctx, args) => {
     await requireBoardMember(ctx)
 
+    const paginationOpts = {
+      ...args.paginationOpts,
+      numItems: normalizePageSize(args.paginationOpts.numItems)
+    }
     const result = await ctx.db
       .query('boardContactSubmissions')
       .order('desc')
-      .paginate(args.paginationOpts)
+      .paginate(paginationOpts)
 
     return {
       data: {
@@ -393,116 +425,118 @@ export const markDeliveryFailed = internalMutation({
   }
 })
 
+async function deliverBoardContactEmailOnce(
+  ctx: ActionCtx,
+  { submissionId }: { submissionId: Id<'boardContactSubmissions'> }
+): Promise<void> {
+  const submission = await ctx.runQuery(internal.boardContact.getSubmissionForDelivery, {
+    submissionId
+  })
+  if (!submission)
+    return
+
+  if (submission.emailDeliveryStatus !== 'pending')
+    return
+
+  const routing = await ctx.runQuery(internal.boardContact.getRoutingConfig, {})
+  const routingEmails = [
+    ...new Set(
+      routing.recipients
+        .map((r: { displayName: string, email: string }) => r.email.trim().toLowerCase())
+        .filter((e: string) => simpleEmailValid(e))
+    )
+  ]
+  const configuredToEmails = normalizeEmailList(process.env.RESEND_TO)
+  const recipientEmails = configuredToEmails.length > 0 ? configuredToEmails : routingEmails
+  const primaryRecipientSet = new Set(recipientEmails)
+  const bccEmails = configuredToEmails.length > 0
+    ? routingEmails.filter(email => !primaryRecipientSet.has(email))
+    : []
+
+  if (recipientEmails.length === 0) {
+    await ctx.runMutation(internal.boardContact.markDeliverySkipped, { submissionId })
+    return
+  }
+
+  const claimResult = await ctx.runMutation(internal.boardContact.claimSubmissionForSending, {
+    submissionId
+  })
+  if (!claimResult.claimed)
+    return
+
+  const apiKey = process.env.RESEND_API_KEY
+  const from = process.env.RESEND_FROM
+
+  if (!apiKey || !from) {
+    await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
+      error: 'ERR_MISSING_RESEND_ENV',
+      submissionId
+    })
+    return
+  }
+
+  const subject = `Fox Ridge HOA — board contact: ${safeSubjectName(submission.submitterName)}`
+  const text = buildPlainTextEmailBody(submission)
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      body: JSON.stringify({
+        from,
+        ...(bccEmails.length > 0 ? { bcc: bccEmails } : {}),
+        subject,
+        text,
+        to: recipientEmails
+      }),
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      method: 'POST'
+    })
+
+    const json: unknown = await res.json().catch(() => null)
+    const message
+      = json
+        && typeof json === 'object'
+        && 'message' in json
+        && typeof (json as { message: unknown }).message === 'string'
+        ? (json as { message: string }).message
+        : null
+
+    if (!res.ok) {
+      const detail = message
+        ? message.replace(/\s+/g, ' ').trim().slice(0, 120)
+        : `HTTP_${res.status}`
+      await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
+        error: `ERR_RESEND_API:${detail}`,
+        submissionId
+      })
+      return
+    }
+
+    const resendEmailId
+      = json
+        && typeof json === 'object'
+        && 'id' in json
+        && typeof (json as { id: unknown }).id === 'string'
+        ? (json as { id: string }).id
+        : undefined
+
+    await ctx.runMutation(internal.boardContact.markDeliverySent, {
+      resendEmailId,
+      submissionId
+    })
+  } catch {
+    await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
+      error: 'ERR_RESEND_NETWORK',
+      submissionId
+    })
+  }
+}
+
 export const deliverBoardContactEmail = internalAction({
   args: { submissionId: v.id('boardContactSubmissions') },
-  handler: async (ctx, { submissionId }) => {
-    const submission = await ctx.runQuery(internal.boardContact.getSubmissionForDelivery, {
-      submissionId
-    })
-    if (!submission)
-      return
-
-    if (
-      submission.emailDeliveryStatus !== 'pending'
-      && submission.emailDeliveryStatus !== 'sending'
-    ) {
-      return
-    }
-
-    const routing = await ctx.runQuery(internal.boardContact.getRoutingConfig, {})
-    const recipientEmails = [
-      ...new Set(
-        routing.recipients
-          .map((r: { displayName: string, email: string }) => r.email.trim().toLowerCase())
-          .filter((e: string) => simpleEmailValid(e))
-      )
-    ]
-
-    if (recipientEmails.length === 0) {
-      await ctx.runMutation(internal.boardContact.markDeliverySkipped, { submissionId })
-      return
-    }
-
-    const claimResult = await ctx.runMutation(internal.boardContact.claimSubmissionForSending, {
-      submissionId
-    })
-    let shouldSend = claimResult.claimed
-    if (!shouldSend) {
-      const again = await ctx.runQuery(internal.boardContact.getSubmissionForDelivery, {
-        submissionId
-      })
-      if (again?.emailDeliveryStatus === 'sending')
-        shouldSend = true
-    }
-    if (!shouldSend)
-      return
-
-    const apiKey = process.env.RESEND_API_KEY
-    const from = process.env.RESEND_FROM
-
-    if (!apiKey || !from) {
-      await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
-        error: 'ERR_MISSING_RESEND_ENV',
-        submissionId
-      })
-      return
-    }
-
-    const subject = `Fox Ridge HOA — board contact: ${safeSubjectName(submission.submitterName)}`
-    const text = buildPlainTextEmailBody(submission)
-
-    try {
-      const res = await fetch('https://api.resend.com/emails', {
-        body: JSON.stringify({
-          from,
-          subject,
-          text,
-          to: recipientEmails
-        }),
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        method: 'POST'
-      })
-
-      const json: unknown = await res.json().catch(() => null)
-      const message
-        = json
-          && typeof json === 'object'
-          && 'message' in json
-          && typeof (json as { message: unknown }).message === 'string'
-          ? (json as { message: string }).message
-          : null
-
-      if (!res.ok) {
-        const detail = message
-          ? message.replace(/\s+/g, ' ').trim().slice(0, 120)
-          : `HTTP_${res.status}`
-        await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
-          error: `ERR_RESEND_API:${detail}`,
-          submissionId
-        })
-        return
-      }
-
-      const resendEmailId
-        = json
-          && typeof json === 'object'
-          && 'id' in json
-          && typeof (json as { id: unknown }).id === 'string'
-          ? (json as { id: string }).id
-          : undefined
-
-      await ctx.runMutation(internal.boardContact.markDeliverySent, {
-        resendEmailId,
-        submissionId
-      })
-    } catch {
-      await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
-        error: 'ERR_RESEND_NETWORK',
-        submissionId
-      })
-    }
+  handler: async (ctx, args) => {
+    await deliverBoardContactEmailOnce(ctx, args)
   }
 })

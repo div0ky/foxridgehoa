@@ -267,6 +267,7 @@ async function changeAccountPassword() {
             v-model="displayNameDraft"
             autocomplete="name"
             class="w-full"
+            maxlength="160"
             placeholder="e.g. Jamie Board Member"
           />
         </UFormField>

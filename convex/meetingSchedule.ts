@@ -7,11 +7,54 @@ import { mutation, query } from './_generated/server'
 import { requireBoardMember } from './authz/requireBoardMember'
 
 const BOARD_MEETING_COUNT = 4
+const HOA_TIME_ZONE = 'America/Chicago'
 
 function assertAllowedScheduleYear(year: number): void {
   const thisYear = new Date().getFullYear()
   if (year < thisYear - 1 || year > thisYear + 2) {
     throw new ConvexError('Year is out of the allowed range.')
+  }
+}
+
+function yearInHoaTimeZone(timestamp: number): number {
+  return Number(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: HOA_TIME_ZONE,
+      year: 'numeric'
+    }).format(new Date(timestamp))
+  )
+}
+
+export function validateMeetingScheduleInput(args: {
+  annualMeeting: number
+  boardMeetings: number[]
+  year: number
+}): { annualMeeting: number, boardMeetings: number[], year: number } {
+  if (!Number.isInteger(args.year))
+    throw new ConvexError('Year is invalid.')
+  assertAllowedScheduleYear(args.year)
+
+  if (args.boardMeetings.length !== BOARD_MEETING_COUNT) {
+    throw new ConvexError(
+      `Provide exactly ${BOARD_MEETING_COUNT} board meeting dates.`
+    )
+  }
+
+  const allMeetings = [...args.boardMeetings, args.annualMeeting]
+  for (const meetingTime of allMeetings) {
+    if (!Number.isFinite(meetingTime))
+      throw new ConvexError('A meeting time is invalid.')
+    if (yearInHoaTimeZone(meetingTime) !== args.year)
+      throw new ConvexError(`Every meeting must fall within ${args.year} in Central Time.`)
+  }
+
+  if (new Set(args.boardMeetings).size !== args.boardMeetings.length)
+    throw new ConvexError('Board meeting dates must be unique.')
+
+  return {
+    annualMeeting: args.annualMeeting,
+    boardMeetings: [...args.boardMeetings].sort((a, b) => a - b),
+    year: args.year
   }
 }
 
@@ -40,6 +83,9 @@ const scheduleReturn = (doc: Doc<'meetingSchedules'>) => ({
 export const getPublicMeetingSchedule = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
+    if (!Number.isInteger(year))
+      throw new ConvexError('Year is invalid.')
+
     const doc = await getNewestScheduleForYear(ctx, year)
     if (!doc) {
       return {
@@ -59,6 +105,8 @@ export const getAdminMeetingSchedule = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
     await requireBoardMember(ctx)
+    if (!Number.isInteger(year))
+      throw new ConvexError('Year is invalid.')
 
     const doc = await getNewestScheduleForYear(ctx, year)
     if (!doc) {
@@ -88,21 +136,7 @@ export const setMeetingSchedule = mutation({
   },
   handler: async (ctx, args) => {
     await requireBoardMember(ctx)
-    assertAllowedScheduleYear(args.year)
-
-    if (args.boardMeetings.length !== BOARD_MEETING_COUNT) {
-      throw new ConvexError(
-        `Provide exactly ${BOARD_MEETING_COUNT} board meeting dates.`
-      )
-    }
-
-    for (const t of args.boardMeetings) {
-      if (!Number.isFinite(t))
-        throw new ConvexError('A board meeting time is invalid.')
-    }
-
-    if (!Number.isFinite(args.annualMeeting))
-      throw new ConvexError('Annual meeting time is invalid.')
+    const schedule = validateMeetingScheduleInput(args)
 
     const updatedAt = Date.now()
     const rows = await ctx.db
@@ -111,10 +145,10 @@ export const setMeetingSchedule = mutation({
       .collect()
 
     const data = {
-      annualMeeting: args.annualMeeting,
-      boardMeetings: args.boardMeetings,
+      annualMeeting: schedule.annualMeeting,
+      boardMeetings: schedule.boardMeetings,
       updatedAt,
-      year: args.year
+      year: schedule.year
     }
 
     if (rows.length === 0) {
@@ -135,8 +169,8 @@ export const setMeetingSchedule = mutation({
     }
 
     await ctx.db.patch(keep._id, {
-      annualMeeting: args.annualMeeting,
-      boardMeetings: args.boardMeetings,
+      annualMeeting: schedule.annualMeeting,
+      boardMeetings: schedule.boardMeetings,
       updatedAt
     })
 

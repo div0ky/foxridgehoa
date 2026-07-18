@@ -80,7 +80,7 @@ watch(
         >
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-lg shadow-primary-500/25">
             <Icon
-              name="heroicons:home-modern"
+              name="lucide:house"
               class="h-5 w-5 text-white"
             />
           </div>
@@ -107,25 +107,47 @@ watch(
             Sign out
           </M3Button>
           <div class="mx-2 h-6 w-px bg-slate-200 dark:bg-slate-700" />
-          <M3IconButton
-            :icon="isDark ? 'heroicons:sun' : 'heroicons:moon'"
-            :label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-            variant="default"
-            size="md"
-            @click="toggleTheme"
-          />
+          <ClientOnly>
+            <M3IconButton
+              :icon="isDark ? 'lucide:sun' : 'lucide:moon'"
+              :label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+              variant="default"
+              size="md"
+              @click="toggleTheme"
+            />
+            <template #fallback>
+              <M3IconButton
+                icon="lucide:moon"
+                label="Toggle color mode"
+                variant="default"
+                size="md"
+                disabled
+              />
+            </template>
+          </ClientOnly>
         </div>
 
         <div class="flex shrink-0 items-center gap-2 md:hidden">
+          <ClientOnly>
+            <M3IconButton
+              :icon="isDark ? 'lucide:sun' : 'lucide:moon'"
+              :label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+              variant="default"
+              size="md"
+              @click="toggleTheme"
+            />
+            <template #fallback>
+              <M3IconButton
+                icon="lucide:moon"
+                label="Toggle color mode"
+                variant="default"
+                size="md"
+                disabled
+              />
+            </template>
+          </ClientOnly>
           <M3IconButton
-            :icon="isDark ? 'heroicons:sun' : 'heroicons:moon'"
-            :label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-            variant="default"
-            size="md"
-            @click="toggleTheme"
-          />
-          <M3IconButton
-            icon="heroicons:bars-3"
+            icon="lucide:menu"
             :label="mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'"
             variant="default"
             size="md"
@@ -207,7 +229,7 @@ watch(
             <div class="flex items-center gap-2">
               <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-primary-600">
                 <Icon
-                  name="heroicons:home-modern"
+                  name="lucide:house"
                   class="h-4 w-4 text-white"
                 />
               </div>
@@ -331,7 +353,7 @@ watch(
             <span class="text-slate-300 dark:text-slate-700">•</span>
             <span>Made with</span>
             <Icon
-              name="heroicons:heart-solid"
+              name="lucide:heart"
               class="h-4 w-4 text-primary-500"
             />
             <span>in Wentzville</span>

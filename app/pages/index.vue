@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { defaultImportantDocumentIcon } from '~/config/important-document-icons'
+import { normalizeImportantDocumentIcon } from '~/config/important-document-icons'
 import { communityUpdateHeadline, getCommunityUpdatePostedAtLabel } from '~/utils/communityUpdateExcerpt'
 
 const [
@@ -70,22 +70,22 @@ const boardMembers: BoardMemberCard[] = [
 const amenities = [
   {
     description: 'Well-maintained properties in a family-friendly neighborhood',
-    icon: 'heroicons:home-modern',
+    icon: 'lucide:house',
     title: 'Beautiful Homes'
   },
   {
     description: 'Scenic paths throughout the neighborhood for walking and jogging',
-    icon: 'heroicons:map',
+    icon: 'lucide:map',
     title: 'Walking Paths'
   },
   {
     description: 'Safe outdoor play areas for children and families',
-    icon: 'heroicons:puzzle-piece',
+    icon: 'lucide:puzzle',
     title: 'Playgrounds'
   },
   {
     description: 'Primarily in the highly-rated Wentzville School District, with parts in the Fort Zumwalt District.',
-    icon: 'heroicons:academic-cap',
+    icon: 'lucide:graduation-cap',
     title: 'Excellent Schools'
   }
 ]
@@ -94,21 +94,21 @@ const helpfulLinks = [
   {
     description: 'Sign in to PayHOA to review your balance and submit HOA payments online.',
     href: 'https://www.payhoa.com',
-    icon: 'heroicons:credit-card',
+    icon: 'lucide:credit-card',
     linkLabel: 'Open PayHOA',
     title: 'Pay HOA Dues'
   },
   {
     description: 'Request resale and closing documents through GS Phillips.',
     href: 'https://www.gsphillips.com/resale-documents',
-    icon: 'heroicons:document-duplicate',
+    icon: 'lucide:copy',
     linkLabel: 'Request Documents',
     title: 'Closing / Resale Documents'
   }
 ]
 
 function iconForImportantDoc(icon?: string) {
-  return icon?.trim() || defaultImportantDocumentIcon
+  return normalizeImportantDocumentIcon(icon?.trim())
 }
 </script>
 
@@ -133,7 +133,7 @@ function iconForImportantDoc(icon?: string) {
           class="mb-6 inline-flex"
         >
           <Icon
-            name="heroicons:map-pin"
+            name="lucide:map-pin"
             class="mr-1.5 h-4 w-4"
           />
           Wentzville, Missouri
@@ -151,7 +151,7 @@ function iconForImportantDoc(icon?: string) {
             variant="primary"
             size="lg"
             to="/updates"
-            icon="heroicons:newspaper"
+            icon="lucide:newspaper"
             class="w-full sm:w-auto"
           >
             Community Updates
@@ -160,7 +160,7 @@ function iconForImportantDoc(icon?: string) {
             variant="secondary"
             size="lg"
             href="#about"
-            icon="heroicons:arrow-down"
+            icon="lucide:arrow-down"
             icon-position="right"
             class="w-full sm:w-auto"
           >
@@ -177,7 +177,7 @@ function iconForImportantDoc(icon?: string) {
             <div>
               <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary-700 dark:bg-primary-950/60 dark:text-primary-300">
                 <Icon
-                  name="heroicons:banknotes"
+                  name="lucide:banknote"
                   class="h-4 w-4"
                 />
                 HOA Payments
@@ -193,7 +193,7 @@ function iconForImportantDoc(icon?: string) {
               variant="primary"
               size="lg"
               href="https://www.payhoa.com"
-              icon="heroicons:arrow-top-right-on-square"
+              icon="lucide:external-link"
               icon-position="right"
               class="w-full md:w-auto"
             >
@@ -237,7 +237,7 @@ function iconForImportantDoc(icon?: string) {
             <div class="flex items-start gap-4">
               <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-500 shadow-lg shadow-primary-500/25">
                 <Icon
-                  name="heroicons:home-modern"
+                  name="lucide:house"
                   class="h-6 w-6 text-white"
                 />
               </div>
@@ -293,7 +293,7 @@ function iconForImportantDoc(icon?: string) {
               >
               <Icon
                 v-else
-                name="heroicons:user"
+                name="lucide:user"
                 class="h-7 w-7 text-slate-500 dark:text-slate-400"
               />
             </div>
@@ -347,7 +347,7 @@ function iconForImportantDoc(icon?: string) {
             variant="ghost"
             size="sm"
             :href="link.href"
-            icon="heroicons:arrow-top-right-on-square"
+            icon="lucide:external-link"
             icon-position="right"
             class="w-full sm:w-auto"
           >
@@ -437,7 +437,7 @@ function iconForImportantDoc(icon?: string) {
                 variant="ghost"
                 size="sm"
                 :href="file.downloadUrl"
-                icon="heroicons:arrow-down-tray"
+                icon="lucide:download"
                 icon-position="right"
                 class="w-full"
               >
@@ -487,7 +487,7 @@ function iconForImportantDoc(icon?: string) {
           </h3>
           <div class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <Icon
-              name="heroicons:user-circle"
+              name="lucide:circle-user-round"
               class="h-4 w-4 shrink-0"
             />
             <span class="min-w-0 break-words">{{ update.authorDisplayName }}</span>
@@ -500,7 +500,7 @@ function iconForImportantDoc(icon?: string) {
             variant="ghost"
             size="sm"
             :to="`/updates/${update.id}`"
-            icon="heroicons:arrow-right"
+            icon="lucide:arrow-right"
             icon-position="right"
             class="w-full sm:w-auto"
           >
@@ -513,7 +513,7 @@ function iconForImportantDoc(icon?: string) {
           variant="secondary"
           size="md"
           to="/updates"
-          icon="heroicons:newspaper"
+          icon="lucide:newspaper"
         >
           View all updates
         </M3Button>
@@ -549,7 +549,7 @@ function iconForImportantDoc(icon?: string) {
             >
               <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon
-                  name="heroicons:envelope"
+                  name="lucide:mail"
                   class="h-6 w-6 text-primary-600 dark:text-primary-400"
                 />
               </div>
@@ -565,7 +565,7 @@ function iconForImportantDoc(icon?: string) {
             <div class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft sm:p-5 dark:bg-slate-800">
               <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon
-                  name="heroicons:map-pin"
+                  name="lucide:map-pin"
                   class="h-6 w-6 text-primary-600 dark:text-primary-400"
                 />
               </div>
@@ -588,7 +588,7 @@ function iconForImportantDoc(icon?: string) {
           <div class="flex items-center gap-4 border-b border-slate-100 pb-6 dark:border-slate-700">
             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-500 shadow-lg shadow-primary-500/25">
               <Icon
-                name="heroicons:calendar"
+                name="lucide:calendar"
                 class="h-6 w-6 text-white"
               />
             </div>

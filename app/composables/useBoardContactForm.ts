@@ -87,7 +87,7 @@ export function useBoardContactForm() {
 
     isSubmitting.value = true
     try {
-      await submitContact.execute({
+      await submitContact({
         message: message.value.trim(),
         streetAddress: streetAddress.value.trim(),
         submitterName: submitterName.value.trim()

@@ -21,8 +21,9 @@ const scheduleYear = ref(new Date().getFullYear())
 
 const adminScheduleState = await useConvexQuery(
   api.meetingSchedule.getAdminMeetingSchedule,
-  () => ({ year: scheduleYear.value }),
-  { enabled: computed(() => isBoardMember.value) }
+  () => isBoardMember.value
+    ? { year: scheduleYear.value }
+    : 'skip'
 )
 
 const serverSchedule = computed(() => adminScheduleState.data.value?.data.schedule ?? null)
@@ -115,7 +116,7 @@ async function submitSave() {
     const annualMeeting = parseOrThrowLocalDatetime(annualSlot.value, labels[4])
 
     saving.value = true
-    await setSchedule.execute({
+    await setSchedule({
       annualMeeting,
       boardMeetings,
       year: scheduleYear.value

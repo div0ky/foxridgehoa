@@ -6,6 +6,8 @@ import { ConvexError, v } from 'convex/values'
 import { internalMutation, mutation, query } from './_generated/server'
 import { requireBoardMember } from './authz/requireBoardMember'
 
+const MAX_BANNER_BODY_CHARS = 2_000
+
 async function readNewestSiteBanner(ctx: QueryCtx | MutationCtx): Promise<Doc<'siteBanner'> | null> {
   const rows = await ctx.db.query('siteBanner').collect()
   if (rows.length === 0)
@@ -77,6 +79,8 @@ export const setSiteBanner = mutation({
     const trimmed = args.body.trim()
     if (!trimmed)
       throw new ConvexError('Banner text is required.')
+    if (trimmed.length > MAX_BANNER_BODY_CHARS)
+      throw new ConvexError(`Banner text must be at most ${MAX_BANNER_BODY_CHARS} characters.`)
 
     if (!Number.isFinite(args.showUntil))
       throw new ConvexError('Show-until time is invalid.')

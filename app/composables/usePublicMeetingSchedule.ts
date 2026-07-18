@@ -1,3 +1,4 @@
+import { useNow } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
@@ -13,6 +14,7 @@ export interface PublicMeetingRow {
 
 export async function usePublicMeetingSchedule() {
   const displayYear = ref(new Date().getFullYear())
+  const now = useNow({ interval: 60_000 })
 
   const state = await useConvexQuery(api.meetingSchedule.getPublicMeetingSchedule, () => ({
     year: displayYear.value
@@ -26,12 +28,12 @@ export async function usePublicMeetingSchedule() {
     if (!s)
       return []
 
-    const now = Date.now()
+    const nowMs = now.value.getTime()
     const board = [...s.boardMeetings]
       .map(atMs => ({
         atMs,
         displayTime: formatHoaMeetingLine({ atMs }),
-        isPast: atMs < now,
+        isPast: atMs < nowMs,
         kind: 'board' as const,
         label: 'Board Meeting'
       }))
@@ -40,7 +42,7 @@ export async function usePublicMeetingSchedule() {
     const annual: PublicMeetingRow = {
       atMs: s.annualMeeting,
       displayTime: formatHoaMeetingLine({ atMs: s.annualMeeting }),
-      isPast: s.annualMeeting < now,
+      isPast: s.annualMeeting < nowMs,
       kind: 'annual',
       label: 'Annual Meeting'
     }

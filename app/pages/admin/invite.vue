@@ -58,7 +58,7 @@ async function submitInvite() {
 
   submitting.value = true
   try {
-    const result = await invite.execute({
+    const result = await invite({
       email: trimmedEmail,
       name: trimmedName,
       role: role.value

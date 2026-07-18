@@ -32,8 +32,7 @@ const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
 const adminListState = await useConvexQuery(
   api.communityUpdates.listCommunityUpdatesAdmin,
-  {},
-  { enabled: computed(() => isBoardMember.value) }
+  () => isBoardMember.value ? {} : 'skip'
 )
 
 const updates = computed(() => adminListState.data.value?.data.updates ?? [])
@@ -70,7 +69,7 @@ async function submitDelete(id: Id<'communityUpdates'>) {
 
   deletingId.value = id
   try {
-    await deleteUpdate.execute({ updateId: id })
+    await deleteUpdate({ updateId: id })
     toast.add({
       color: 'success',
       description: 'The update was removed.',

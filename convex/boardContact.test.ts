@@ -22,6 +22,7 @@ test('submitBoardContactMessage rejects empty name', async () => {
 
 test('submitBoardContactMessage throws when no recipients; row skipped', async () => {
   const t = convexTest(schema, modules)
+  delete process.env.RESEND_TO
 
   await expect(
     t.action(api.boardContact.submitBoardContactMessage, {
@@ -38,6 +39,53 @@ test('submitBoardContactMessage throws when no recipients; row skipped', async (
 
   expect(row?.emailDeliveryStatus).toBe('skipped_no_recipients')
   expect(row?.submitterName).toBe('Jane Resident')
+})
+
+test('submitBoardContactMessage sends to RESEND_TO when routing is empty', async () => {
+  const t = convexTest(schema, modules)
+
+  const fetchMock = vi.fn(async () =>
+    Promise.resolve({
+      json: async () => ({ id: 're_primary' }),
+      ok: true,
+      status: 200
+    } as Response)
+  )
+  const prevFetch = globalThis.fetch
+  vi.stubGlobal('fetch', fetchMock)
+
+  try {
+    process.env.RESEND_API_KEY = 'test_key'
+    process.env.RESEND_FROM = 'Fox <from@test.com>'
+    process.env.RESEND_TO = 'board@example.com'
+
+    const result = await t.action(api.boardContact.submitBoardContactMessage, {
+      message: 'Pool question.',
+      streetAddress: '456 Fox Creek',
+      submitterName: 'Jane Resident'
+    })
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalled()
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      from: 'Fox <from@test.com>',
+      to: ['board@example.com']
+    })
+
+    const row = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('boardContactSubmissions').collect()
+      return rows[0]
+    })
+
+    expect(row?.emailDeliveryStatus).toBe('sent')
+    expect(row?.resendEmailId).toBe('re_primary')
+  } finally {
+    vi.unstubAllGlobals()
+    globalThis.fetch = prevFetch
+    delete process.env.RESEND_API_KEY
+    delete process.env.RESEND_FROM
+    delete process.env.RESEND_TO
+  }
 })
 
 test('setBoardContactRouting throws when unauthenticated', async () => {
@@ -68,6 +116,7 @@ test('deleteBoardContactSubmission throws when unauthenticated', async () => {
 
 test('deliverBoardContactEmail marks skipped when no recipients', async () => {
   const t = convexTest(schema, modules)
+  delete process.env.RESEND_TO
 
   const { submissionId } = await t.mutation(
     internal.boardContact.createPendingBoardContactSubmission,
@@ -115,6 +164,7 @@ test('submitBoardContactMessage sends via Resend when configured', async () => {
   try {
     process.env.RESEND_API_KEY = 'test_key'
     process.env.RESEND_FROM = 'Fox <from@test.com>'
+    process.env.RESEND_TO = 'board@example.com'
 
     const result = await t.action(api.boardContact.submitBoardContactMessage, {
       message: 'Hi board',
@@ -125,8 +175,9 @@ test('submitBoardContactMessage sends via Resend when configured', async () => {
     expect(result.ok).toBe(true)
     expect(fetchMock).toHaveBeenCalled()
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      bcc: ['dir@example.com', 'other@example.com'],
       from: 'Fox <from@test.com>',
-      to: ['dir@example.com', 'other@example.com']
+      to: ['board@example.com']
     })
 
     const row = await t.run(async (ctx) => {
@@ -141,6 +192,7 @@ test('submitBoardContactMessage sends via Resend when configured', async () => {
     globalThis.fetch = prevFetch
     delete process.env.RESEND_API_KEY
     delete process.env.RESEND_FROM
+    delete process.env.RESEND_TO
   }
 })
 
@@ -198,6 +250,56 @@ test('deliverBoardContactEmail sends via Resend and marks sent', async () => {
   } finally {
     vi.unstubAllGlobals()
     globalThis.fetch = prevFetch
+    delete process.env.RESEND_API_KEY
+    delete process.env.RESEND_FROM
+  }
+})
+
+test('deliverBoardContactEmail sends only once when actions race', async () => {
+  const t = convexTest(schema, modules)
+
+  await t.run(async (ctx) => {
+    await ctx.db.insert('boardContactRouting', {
+      recipients: [{ displayName: 'Director', email: 'dir@example.com' }],
+      updatedAt: Date.now()
+    })
+  })
+
+  const { submissionId } = await t.mutation(
+    internal.boardContact.createPendingBoardContactSubmission,
+    {
+      message: 'Please send this once.',
+      streetAddress: '9 Oak',
+      submitterName: 'Chris'
+    }
+  )
+
+  const fetchMock = vi.fn(async () => {
+    await new Promise(resolve => setTimeout(resolve, 25))
+    return {
+      json: async () => ({ id: 're_once' }),
+      ok: true,
+      status: 200
+    } as Response
+  })
+  vi.stubGlobal('fetch', fetchMock)
+
+  try {
+    process.env.RESEND_API_KEY = 'test_key'
+    process.env.RESEND_FROM = 'Fox <from@test.com>'
+
+    await Promise.all([
+      t.action(internal.boardContact.deliverBoardContactEmail, { submissionId }),
+      t.action(internal.boardContact.deliverBoardContactEmail, { submissionId })
+    ])
+
+    const row = await t.run(async ctx => ctx.db.get(submissionId))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(row?.emailDeliveryStatus).toBe('sent')
+    expect(row?.resendEmailId).toBe('re_once')
+  } finally {
+    vi.unstubAllGlobals()
     delete process.env.RESEND_API_KEY
     delete process.env.RESEND_FROM
   }

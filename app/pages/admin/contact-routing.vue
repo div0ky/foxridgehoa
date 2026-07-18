@@ -21,8 +21,7 @@ const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
 const routingState = await useConvexQuery(
   api.boardContact.getBoardContactRouting,
-  {},
-  { enabled: computed(() => isBoardMember.value) }
+  () => isBoardMember.value ? {} : 'skip'
 )
 
 const serverRouting = computed(() => routingState.data.value?.data.routing ?? null)
@@ -115,7 +114,7 @@ async function submitRouting() {
 
   savingRouting.value = true
   try {
-    await setRouting.execute({ recipients })
+    await setRouting({ recipients })
     toast.add({
       color: 'success',
       description: 'Notification recipients are saved.',
@@ -142,8 +141,9 @@ const paginationOpts = ref<{ cursor: null | string, numItems: number }>({
 
 const submissionsState = await useConvexQuery(
   api.boardContact.listBoardContactSubmissions,
-  computed(() => ({ paginationOpts: paginationOpts.value })),
-  { enabled: computed(() => isBoardMember.value) }
+  () => isBoardMember.value
+    ? { paginationOpts: paginationOpts.value }
+    : 'skip'
 )
 
 const submissionPage = computed(
@@ -241,7 +241,7 @@ async function confirmDeleteSubmission() {
 
   deletingSubmissionId.value = row.submissionId
   try {
-    await deleteSubmission.execute({ submissionId: row.submissionId })
+    await deleteSubmission({ submissionId: row.submissionId })
     accumulatedSubmissions.value = accumulatedSubmissions.value.filter(
       submission => submission.submissionId !== row.submissionId
     )

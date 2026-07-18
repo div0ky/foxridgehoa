@@ -127,7 +127,7 @@ const {
               variant="primary"
               size="lg"
               button-type="submit"
-              icon="heroicons:paper-airplane"
+              icon="lucide:send"
               icon-position="right"
               class="w-full sm:w-auto"
               :disabled="isSubmitting"

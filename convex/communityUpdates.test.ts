@@ -80,6 +80,39 @@ test('paginateCommunityUpdatesPublic returns older pages by posted time', async 
   expect(secondPage.data.isDone).toBe(true)
 })
 
+test('paginateCommunityUpdatesPublic caps untrusted page sizes', async () => {
+  const t = convexTest(schema, modules)
+
+  await t.run(async (ctx) => {
+    for (let postedAt = 1; postedAt <= 60; postedAt++) {
+      await ctx.db.insert('communityUpdates', {
+        authorDisplayName: 'Test Board',
+        bodyMarkdown: `Update ${postedAt}`,
+        createdAt: postedAt,
+        images: [],
+        postedAt,
+        postedByAuthUserId: 'user_test',
+        updatedAt: postedAt
+      })
+    }
+  })
+
+  const result = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
+    paginationOpts: { cursor: null, numItems: 10_000 }
+  })
+
+  expect(result.data.updates).toHaveLength(50)
+  expect(result.data.isDone).toBe(false)
+})
+
+test('listCommunityUpdatesPublic rejects non-finite limits', async () => {
+  const t = convexTest(schema, modules)
+
+  await expect(
+    t.query(api.communityUpdates.listCommunityUpdatesPublic, { limit: Number.NaN })
+  ).rejects.toThrow(/item count is invalid/i)
+})
+
 test('getCommunityUpdatePublic returns null after doc deleted', async () => {
   const t = convexTest(schema, modules)
 

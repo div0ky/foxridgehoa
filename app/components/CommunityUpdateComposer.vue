@@ -44,6 +44,15 @@ interface ComposerImage {
   url: string
 }
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const allowedImageTypes = new Set([
+  'image/avif',
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp'
+])
+
 const bodyMarkdown = ref('# Community update\n\nWrite your message in **Markdown**.')
 const images = ref<ComposerImage[]>([])
 const postDateTime = ref(toLocalDateTimeInputValue(new Date()))
@@ -168,9 +177,37 @@ function onFileInputChange(event: Event) {
   const input = event.target as HTMLInputElement
   const picked = input.files ? Array.from(input.files) : []
   const remainingSlots = 3 - images.value.length
-  const toAdd = picked.slice(0, remainingSlots)
+  const validImages: File[] = []
 
-  for (const file of toAdd) {
+  for (const file of picked) {
+    if (!allowedImageTypes.has(file.type)) {
+      toast.add({
+        color: 'warning',
+        description: `${file.name} is not a supported JPEG, PNG, WebP, GIF, or AVIF image.`,
+        title: 'Unsupported image'
+      })
+      continue
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.add({
+        color: 'warning',
+        description: `${file.name} is larger than 5 MB.`,
+        title: 'Image too large'
+      })
+      continue
+    }
+    validImages.push(file)
+  }
+
+  if (validImages.length > remainingSlots) {
+    toast.add({
+      color: 'warning',
+      description: 'Only the first images that fit the three-image limit were added.',
+      title: 'Image limit'
+    })
+  }
+
+  for (const file of validImages.slice(0, remainingSlots)) {
     const url = URL.createObjectURL(file)
     images.value.push({
       file,
@@ -218,14 +255,14 @@ async function submitPublish() {
       if (img.type === 'existing' && img.storageId) {
         storageIds.push(img.storageId)
       } else if (img.type === 'new' && img.file) {
-        const uploadUrl = await generateUploadUrl.execute({}) as string
+        const uploadUrl = await generateUploadUrl({}) as string
         const storageId = await postImageToConvexUploadUrl(uploadUrl, img.file)
         storageIds.push(storageId as Id<'_storage'>)
       }
     }
 
     if (props.update) {
-      await updateUpdate.execute({
+      await updateUpdate({
         bodyMarkdown: md,
         imageStorageIds: storageIds,
         postedAt,
@@ -238,7 +275,7 @@ async function submitPublish() {
       })
       emit('updated')
     } else {
-      await createUpdate.execute({
+      await createUpdate({
         bodyMarkdown: md,
         imageStorageIds: storageIds.length > 0 ? storageIds : undefined,
         postedAt
@@ -346,7 +383,7 @@ async function submitPublish() {
           hint="Up to 3 images, 5 MB each."
         >
           <UInput
-            accept="image/*"
+            accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
             :disabled="images.length >= 3"
             multiple
             type="file"

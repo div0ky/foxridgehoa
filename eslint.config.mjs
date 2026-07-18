@@ -42,4 +42,6 @@ export default withNuxt({
       }
     ]
   }
+}).prepend({
+  ignores: ['.agents/**']
 })
