@@ -3,9 +3,11 @@ import { describe, expect, test } from 'vitest'
 import {
   communityUpdatePlainText,
   getCommunityUpdateCanonicalUrl,
+  getCommunityUpdateDetailPostedAt,
   getCommunityUpdatePostedAtLabel,
   getCommunityUpdateSeoDescription,
-  getCommunityUpdateSeoTitle
+  getCommunityUpdateSeoTitle,
+  getCommunityUpdateTimelinePostedAt
 } from './communityUpdateExcerpt'
 
 describe('community update SEO helpers', () => {
@@ -86,5 +88,13 @@ Please review [the agenda](https://example.com) before **Thursday**.
         postedAt: Date.UTC(2026, 3, 27, 18, 30)
       })
     ).toBe('Apr 27, 2026')
+  })
+
+  test('formats public timestamps in the HOA time zone', () => {
+    const postedAt = Date.UTC(2026, 0, 1, 2, 30)
+
+    expect(getCommunityUpdatePostedAtLabel({ postedAt })).toBe('Dec 31, 2025')
+    expect(getCommunityUpdateDetailPostedAt({ postedAt })).toBe('8:30 PM · Dec 31, 2025')
+    expect(getCommunityUpdateTimelinePostedAt({ postedAt })).toBe('December 31, 2025 at 8:30 PM')
   })
 })
