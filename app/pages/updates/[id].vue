@@ -9,6 +9,7 @@ import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttach
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
 import {
   getCommunityUpdateCanonicalUrl,
+  getCommunityUpdateDetailPostedAt,
   getCommunityUpdatePostedAtLabel,
   getCommunityUpdateSeoDescription,
   getCommunityUpdateSeoTitle
@@ -101,18 +102,7 @@ const formattedPostedAt = computed(() => {
   if (!update.value)
     return ''
 
-  const postDate = new Date(update.value.postedAt)
-  const time = postDate.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit'
-  })
-  const date = postDate.toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  })
-
-  return `${time} · ${date}`
+  return getCommunityUpdateDetailPostedAt({ postedAt: update.value.postedAt })
 })
 
 async function copyUpdateLink() {

@@ -5,6 +5,7 @@ import { api } from '~~/convex/_generated/api'
 
 import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttachmentGallery.vue'
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
+import { getCommunityUpdateTimelinePostedAt } from '~/utils/communityUpdateExcerpt'
 
 const {
   canLoadMore,
@@ -71,13 +72,7 @@ useIntersectionObserver(
 )
 
 function formatCommunityUpdateDate(ms: number): string {
-  return new Date(ms).toLocaleDateString(undefined, {
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    month: 'long',
-    year: 'numeric'
-  })
+  return getCommunityUpdateTimelinePostedAt({ postedAt: ms })
 }
 
 function isoDateTime(ms: number): string {

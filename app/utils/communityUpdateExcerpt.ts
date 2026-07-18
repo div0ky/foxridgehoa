@@ -17,6 +17,7 @@ export function communityUpdateHeadline(markdown: string, maxChars = 88): string
 
 const DEFAULT_SEO_DESCRIPTION = 'News and reminders from the Fox Ridge HOA board.'
 const DEFAULT_SEO_TITLE = 'Community update'
+const COMMUNITY_UPDATE_TIME_ZONE = 'America/Chicago'
 
 function truncatePreviewText(text: string, maxChars: number): string {
   if (text.length <= maxChars)
@@ -103,6 +104,39 @@ export function getCommunityUpdatePostedAtLabel(
   return new Date(postedAt).toLocaleDateString('en-US', {
     day: 'numeric',
     month: 'short',
+    timeZone: COMMUNITY_UPDATE_TIME_ZONE,
+    year: 'numeric'
+  })
+}
+
+export function getCommunityUpdateDetailPostedAt(
+  { postedAt }: { postedAt: number }
+): string {
+  const postDate = new Date(postedAt)
+  const time = postDate.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: COMMUNITY_UPDATE_TIME_ZONE
+  })
+  const date = postDate.toLocaleDateString('en-US', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: COMMUNITY_UPDATE_TIME_ZONE,
+    year: 'numeric'
+  })
+
+  return `${time} · ${date}`
+}
+
+export function getCommunityUpdateTimelinePostedAt(
+  { postedAt }: { postedAt: number }
+): string {
+  return new Date(postedAt).toLocaleDateString('en-US', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'long',
+    timeZone: COMMUNITY_UPDATE_TIME_ZONE,
     year: 'numeric'
   })
 }
