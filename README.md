@@ -1,90 +1,57 @@
 # Fox Ridge HOA
 
-Community website for the Fox Ridge Homeowners Association in Wentzville, MO. Built with Nuxt 4 and Nuxt Content for a fast, modern, and maintainable site.
+Community website for the Fox Ridge Homeowners Association in Wentzville, Missouri. Nuxt 4 serves the public site and admin dashboard. Convex stores community updates, important documents, meeting schedules, and site banners. Better Auth handles operator sign-in.
 
-## Tech Stack
+## Project structure
 
-- **[Nuxt 4](https://nuxt.com)** — Vue meta-framework
-- **[Nuxt Content 3](https://content.nuxt.com)** — Markdown-driven content
-- **[Tailwind CSS](https://tailwindcss.com)** — Utility-first styling
-- **[Nuxt Icon](https://nuxt.com/modules/icon)** — Heroicons integration
-- **[@nuxtjs/color-mode](https://color-mode.nuxtjs.org)** — Dark mode support
+- `app/pages/` contains public pages, sign-in, and admin routes.
+- `app/components/m3/` contains the public site's Material Design 3-inspired components. The admin dashboard uses Nuxt UI. Both use Tailwind CSS and Lucide icons.
+- `convex/` contains the backend schema, queries, mutations, and auth setup. Convex file storage holds update images and document PDFs.
+- `public/` contains static assets.
 
-## Project Structure
+## Local development
 
-```
-foxridgehoa/
-├── app/
-│   ├── components/
-│   │   └── m3/           # M3 design system components
-│   ├── layouts/
-│   │   └── default.vue   # Main layout with header/footer
-│   └── pages/
-│       ├── index.vue     # Homepage
-│       └── updates/      # Community updates listing & detail
-├── content/
-│   ├── index.md          # Homepage content
-│   ├── about.md          # About page
-│   └── updates/          # Updates (Markdown)
-└── public/               # Static assets
-```
-
-## Setup
-
-Install dependencies:
+Use Node.js 24.15 or later in the 24.x line, or Node.js 26 and newer. Use Bun 1.4.4 for the lockfile's scoped overrides.
 
 ```bash
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# bun
-bun install
+bun install --frozen-lockfile
+cp .env.example .env
 ```
 
-## Development
-
-Start the development server on `http://localhost:3000`:
+Use a Convex development deployment. Run `bunx convex dev` in a separate terminal to sync the backend. Set `NUXT_PUBLIC_CONVEX_URL` and `NUXT_PUBLIC_CONVEX_SITE_URL` in `.env` to that deployment's cloud and HTTP site URLs. Follow the [admin auth setup](docs/admin-auth-setup.md) to configure auth and bootstrap the first board operator on the development deployment.
 
 ```bash
 bun run dev
 ```
 
-## Production
+Open `http://localhost:3000`. Sign in at `/auth/signin` to access `/admin`.
 
-Build for production (Vercel static deployment):
+## Tests and lint
 
-```bash
-bun run build
-```
-
-Preview the production build locally:
+From a clean checkout, install dependencies and run `bun run test`. The test script generates Nuxt's TypeScript and ESLint configuration before running Vitest. Tests use an in-memory Convex backend.
 
 ```bash
-bun run preview
+bun run test
+bun run typecheck
+bun eslint .
 ```
 
-## Content Management
+## Content updates
 
-### Adding Updates
+Use **Community updates** in the admin dashboard to publish and edit posts. Post bodies support Markdown headings, lists, quotes, links, images, code, and tables. Raw HTML and custom component syntax display as text. The dashboard also has sections for important documents, HOA meetings, and the site banner. Edit the corresponding Vue pages in `app/pages/` to change static page copy or layout.
 
-Create a new Markdown file in `content/updates/`:
+## Build
 
-```markdown
----
-title: Your Update Title
-description: A brief description
-date: 2025-01-15
----
+`bun run build` uses Nitro's `vercel` preset and outputs a server build to `.vercel/output`. The build environment needs the two public Convex URLs described above. `vercel.json` pins the install command to `bunx bun@1.4.4 install --frozen-lockfile` so Vercel can read the scoped overrides in the lockfile.
 
-Your content here...
+For a release that changes both layers, release the Convex functions and schema before the frontend so the new homepage query and editor arguments are available.
+
+For a local production build using the development Convex settings in `.env`:
+
+```bash
+bun run build --preset node-server
+node --env-file=.env .output/server/index.mjs
 ```
-
-### Editing Pages
-
-Modify files in `content/` directory. Changes hot-reload in development.
 
 ## M3 Components
 
@@ -98,10 +65,6 @@ Custom Material Design 3-inspired components in `app/components/m3/`:
 | `M3IconButton` | Icon-only actions |
 | `M3Section` | Page sections with spacing |
 | `M3SectionHeader` | Section titles |
-
-## Deployment
-
-Configured for **Vercel static** deployment via `nitro.preset: 'vercel-static'`.
 
 ## License
 
