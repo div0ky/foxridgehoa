@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import { normalizeImportantDocumentIcon } from '~/config/important-document-icons'
-import { communityUpdateHeadline, getCommunityUpdatePostedAtLabel } from '~/utils/communityUpdateExcerpt'
+import { getCommunityUpdatePostedAtLabel } from '~/utils/communityUpdateExcerpt'
 
 const [
   { documents, isPending: importantDocumentsPending },
@@ -16,7 +16,7 @@ const [
 ] = await Promise.all([
   useImportantDocuments(),
   usePublicMeetingSchedule(),
-  usePublicCommunityUpdates(3)
+  usePublicCommunityUpdates()
 ])
 
 const showImportantDocuments = computed(
@@ -29,17 +29,14 @@ const showCommunityUpdatesTeaser = computed(
 
 const communityUpdateTeasers = computed(() =>
   recentCommunityUpdates.value.map(update => ({
-    authorDisplayName: update.authorDisplayName,
-    headline: communityUpdateHeadline(update.bodyMarkdown),
-    id: update.id,
-    imageUrls: update.imageUrls,
-    postedAt: update.postedAt,
+    ...update,
+    postedAtIso: new Date(update.postedAt).toISOString(),
     postedAtLabel: getCommunityUpdatePostedAtLabel({ postedAt: update.postedAt })
   }))
 )
 
-const currentMonth = new Date().getMonth()
-const shouldShowHoaPaymentReminder = [0, 1, 11].includes(currentMonth)
+const hoaCalendar = useHoaCalendar()
+const shouldShowHoaPaymentReminder = computed(() => [0, 1, 11].includes(hoaCalendar.value.month))
 
 type BoardMemberCard = {
   imageSrc?: string
@@ -271,12 +268,11 @@ function iconForImportantDoc(icon?: string) {
       />
       <div class="mt-12 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
         <M3Card
-          v-for="(member, index) in boardMembers"
+          v-for="member in boardMembers"
           :key="member.name"
           variant="elevated"
           hoverable
           as="article"
-          :class="`stagger-${index + 1}`"
         >
           <div class="mb-4 flex items-start justify-between">
             <div
@@ -395,10 +391,9 @@ function iconForImportantDoc(icon?: string) {
 
     <!-- Documents Section (Convex — board uploads) -->
     <M3Section
-      v-if="showImportantDocuments"
       id="documents"
       background="dim"
-      padding="lg"
+      :padding="showImportantDocuments ? 'lg' : 'sm'"
     >
       <M3SectionHeader
         label="Resources"
@@ -406,7 +401,29 @@ function iconForImportantDoc(icon?: string) {
         description="Access community guidelines, bylaws, and important forms."
         size="md"
       />
-      <div class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-7">
+      <p
+        v-if="!showImportantDocuments"
+        class="mt-6 text-center text-sm text-slate-600 dark:text-slate-400"
+        :role="importantDocumentsPending ? 'status' : undefined"
+      >
+        <template v-if="importantDocumentsPending">
+          Loading documents…
+        </template>
+        <template v-else>
+          No documents are available online right now.
+          <NuxtLink
+            to="/contact-the-board"
+            class="font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-400"
+          >
+            Contact the Board
+          </NuxtLink>
+          to request a copy.
+        </template>
+      </p>
+      <div
+        v-else
+        class="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-7"
+      >
         <M3Card
           v-for="doc in documents"
           :key="doc.id"
@@ -471,11 +488,11 @@ function iconForImportantDoc(icon?: string) {
           as="article"
         >
           <div
-            v-if="update.imageUrls[0]"
+            v-if="update.imageUrl"
             class="relative -mx-5 -mt-5 mb-4 overflow-hidden rounded-t-[var(--radius-2xl,1rem)] sm:-mx-6 sm:-mt-6"
           >
             <img
-              :src="update.imageUrls[0]"
+              :src="update.imageUrl"
               alt=""
               class="h-36 w-full object-cover"
               decoding="async"
@@ -492,7 +509,7 @@ function iconForImportantDoc(icon?: string) {
             />
             <span class="min-w-0 break-words">{{ update.authorDisplayName }}</span>
             <span class="text-slate-300 dark:text-slate-600">•</span>
-            <time :datetime="String(update.postedAt)">
+            <time :datetime="update.postedAtIso">
               {{ update.postedAtLabel }}
             </time>
           </div>

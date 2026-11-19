@@ -6,8 +6,9 @@ definePageMeta({
 })
 
 const route = useRoute()
+const router = useRouter()
 
-const { isAuthenticated, isPending, refreshAuth, signIn } = useConvexAuth()
+const { awaitAuthReady, refreshAuth, signIn } = useConvexAuth()
 
 const email = ref('')
 const password = ref('')
@@ -16,15 +17,14 @@ const isSubmitting = ref(false)
 
 const defaultAfterLogin = '/admin'
 
+function getSignInTarget() {
+  const target = safeInternalPath(route.query.redirect, defaultAfterLogin)
+  return router.resolve(target).name === route.name ? defaultAfterLogin : target
+}
+
 onMounted(async () => {
-  if (import.meta.server) {
-    return
-  }
-  await nextTick()
-  if (isAuthenticated.value && !isPending.value) {
-    const target = safeInternalPath(route.query.redirect, defaultAfterLogin)
-    await navigateTo(target)
-  }
+  if (await awaitAuthReady() && !isSubmitting.value)
+    await navigateTo(getSignInTarget(), { replace: true })
 })
 
 async function onSubmit() {
@@ -45,8 +45,7 @@ async function onSubmit() {
       return
     }
     await refreshAuth()
-    const target = safeInternalPath(route.query.redirect, defaultAfterLogin)
-    await navigateTo(target)
+    await navigateTo(getSignInTarget(), { replace: true })
   } catch {
     formError.value = 'Sign-in failed. Try again.'
   } finally {
@@ -108,13 +107,13 @@ async function onSubmit() {
           {{ formError }}
         </p>
 
-        <button
-          type="submit"
-          class="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+        <M3Button
+          button-type="submit"
+          class="w-full"
           :disabled="isSubmitting"
         >
           {{ isSubmitting ? 'Signing in…' : 'Sign in' }}
-        </button>
+        </M3Button>
       </form>
     </M3Card>
   </div>

@@ -9,7 +9,7 @@ export interface PublicSiteBanner {
 
 /** Public site alert banner (Convex reactive query). */
 export async function useSiteBanner() {
-  const state = await useConvexQuery(api.siteBanner.getPublicSiteBanner, {})
+  const state = await useConvexQuery(api.siteBanner.getPublicSiteBanner, {}, { auth: 'none' })
   const now = useNow({ interval: 60_000 })
 
   const banner = computed((): PublicSiteBanner | null => {

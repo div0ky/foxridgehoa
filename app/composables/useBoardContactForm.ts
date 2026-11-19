@@ -1,3 +1,6 @@
+import type { FormError } from '@nuxt/ui'
+
+import { ConvexError } from 'convex/values'
 import { api } from '~~/convex/_generated/api'
 
 export const BOARD_CONTACT_LIMITS = {
@@ -7,120 +10,86 @@ export const BOARD_CONTACT_LIMITS = {
 } as const
 
 const GENERIC_SUBMIT_ERROR
-  = 'We couldn\'t send your message right now. Please try again in a few minutes.'
+  = 'We couldn’t confirm your submission. Your draft is still here. Please try again in a few minutes.'
 
-function boardContactDeliveryErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  if (
-    message.includes('CONTACT_SUBMIT_NO_RECIPIENTS')
-    || message.includes('skipped_no_recipients')
-  ) {
-    return 'The board hasn\'t finished email routing yet. Try again later or reach out another way if this keeps happening.'
-  }
+function boardContactDeliveryFeedback(error: unknown): { message: string, saved: boolean } {
+  const originalError = error instanceof Error && error.cause instanceof ConvexError ? error.cause : error
+  const message = originalError instanceof ConvexError && typeof originalError.data === 'string'
+    ? originalError.data
+    : error instanceof Error ? error.message : ''
+
+  if (message.includes('CONTACT_SUBMIT_RATE_LIMITED'))
+    return { message: 'The contact form has reached its submission limit. Your draft is still here. Please try again later.', saved: false }
+  if (message.includes('CONTACT_SUBMIT_NO_RECIPIENTS'))
+    return { message: 'We saved your message for the board to review. Email notifications aren’t set up yet. You don’t need to send it again.', saved: true }
   if (message.includes('CONTACT_SUBMIT_DELIVERY_FAILED'))
-    return 'We saved your message, but email couldn\'t be delivered. Try again in a few minutes.'
+    return { message: 'We saved your message for the board to review. The email notification failed. You don’t need to send it again.', saved: true }
   if (message.includes('CONTACT_SUBMIT_DELIVERY_INCOMPLETE'))
-    return 'We couldn\'t confirm the email was sent. Please try again in a few minutes.'
-  if (message.includes('CONTACT_SUBMIT_INTERNAL'))
-    return GENERIC_SUBMIT_ERROR
-  if (/Name is required|Street address is required|Message is required/.test(message))
-    return GENERIC_SUBMIT_ERROR
-  if (/must be at most \d+ characters/.test(message))
-    return message
-  return GENERIC_SUBMIT_ERROR
+    return { message: 'We saved your message for the board to review. We couldn’t confirm the email notification. You don’t need to send it again.', saved: true }
+  return { message: GENERIC_SUBMIT_ERROR, saved: false }
 }
 
-function clientValidationMessage(args: {
+interface BoardContactDraft {
   message: string
   streetAddress: string
   submitterName: string
-}): string | null {
-  const submitterName = args.submitterName.trim()
-  const streetAddress = args.streetAddress.trim()
-  const message = args.message.trim()
+}
 
-  if (!submitterName)
-    return 'Enter your name.'
-  if (!streetAddress)
-    return 'Enter your street address (e.g. 123 Rifle Ridge).'
-  if (!message)
-    return 'Enter a message.'
+function validateBoardContactDraft(draft: BoardContactDraft): FormError[] {
+  const fields = [
+    { label: 'Name', max: BOARD_CONTACT_LIMITS.name, name: 'submitterName', required: 'Enter your name.' },
+    { label: 'Street address', max: BOARD_CONTACT_LIMITS.street, name: 'streetAddress', required: 'Enter your street address.' },
+    { label: 'Message', max: BOARD_CONTACT_LIMITS.message, name: 'message', required: 'Enter a message.' }
+  ] as const
 
-  if (submitterName.length > BOARD_CONTACT_LIMITS.name)
-    return `Name must be at most ${BOARD_CONTACT_LIMITS.name} characters.`
-  if (streetAddress.length > BOARD_CONTACT_LIMITS.street)
-    return `Street address must be at most ${BOARD_CONTACT_LIMITS.street} characters.`
-  if (message.length > BOARD_CONTACT_LIMITS.message)
-    return `Message must be at most ${BOARD_CONTACT_LIMITS.message} characters.`
-
-  return null
+  const errors: FormError[] = []
+  for (const { label, max, name, required } of fields) {
+    const value = draft[name].trim()
+    if (!value)
+      errors.push({ message: required, name })
+    else if (value.length > max)
+      errors.push({ message: `${label} must be at most ${max} characters.`, name })
+  }
+  return errors
 }
 
 export function useBoardContactForm() {
-  const toast = useToast()
   const submitContact = useConvexAction(api.boardContact.submitBoardContactMessage)
 
-  const submitterName = ref('')
-  const streetAddress = ref('')
-  const message = ref('')
+  const initialDraft: BoardContactDraft = { message: '', streetAddress: '', submitterName: '' }
+  const draft = reactive({ ...initialDraft })
   const isSubmitting = ref(false)
   const statusAnnouncement = ref<null | string>(null)
 
   async function submit() {
-    statusAnnouncement.value = null
-
-    const validationError = clientValidationMessage({
-      message: message.value,
-      streetAddress: streetAddress.value,
-      submitterName: submitterName.value
-    })
-
-    if (validationError) {
-      statusAnnouncement.value = validationError
-      toast.add({
-        color: 'warning',
-        description: validationError,
-        title: 'Check your form'
-      })
+    if (isSubmitting.value)
       return
-    }
 
+    statusAnnouncement.value = null
     isSubmitting.value = true
     try {
       await submitContact({
-        message: message.value.trim(),
-        streetAddress: streetAddress.value.trim(),
-        submitterName: submitterName.value.trim()
+        message: draft.message.trim(),
+        streetAddress: draft.streetAddress.trim(),
+        submitterName: draft.submitterName.trim()
       })
-      const sentLine = 'Your message was saved and emailed to the board.'
-      statusAnnouncement.value = sentLine
-      toast.add({
-        color: 'success',
-        description: sentLine,
-        title: 'Thank you'
-      })
-      submitterName.value = ''
-      streetAddress.value = ''
-      message.value = ''
+      statusAnnouncement.value = 'Your message was saved and emailed to the board.'
+      Object.assign(draft, initialDraft)
     } catch (error) {
-      const description = boardContactDeliveryErrorMessage(error)
-      statusAnnouncement.value = description
-      toast.add({
-        color: 'error',
-        description,
-        title: 'Could not send'
-      })
+      const feedback = boardContactDeliveryFeedback(error)
+      statusAnnouncement.value = feedback.message
+      if (feedback.saved)
+        Object.assign(draft, initialDraft)
     } finally {
       isSubmitting.value = false
     }
   }
 
   return {
+    draft,
     isSubmitting,
-    message,
     statusAnnouncement,
-    streetAddress,
     submit,
-    submitterName
+    validate: validateBoardContactDraft
   }
 }

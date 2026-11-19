@@ -26,3 +26,15 @@ export function formatHoaMeetingLine({ atMs }: { atMs: number }): string {
 
   return `${month}/${day} at ${time}`
 }
+
+/** Calendar year and 0-based month of an instant on the HOA's Central Time wall clock. */
+export function getHoaCalendarParts({ atMs }: { atMs: number }): { month: number, year: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    timeZone: HOA_MEETING_TIME_ZONE,
+    year: 'numeric'
+  }).formatToParts(new Date(atMs))
+  const g = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find(p => p.type === type)?.value)
+
+  return { month: g('month') - 1, year: g('year') }
+}

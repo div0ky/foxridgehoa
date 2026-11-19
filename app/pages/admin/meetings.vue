@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '~~/convex/_generated/api'
+
+import { useLiveSettingsQuery } from '~/composables/useLiveSettingsQuery'
+import { useServerDraft } from '~/composables/useServerDraft'
 
 definePageMeta({
   convexAuth: true,
@@ -15,23 +18,21 @@ const profileState = await useConvexQuery(api.operatorProfiles.getMyOperatorProf
 
 const profile = computed(() => profileState.data.value?.data.profile)
 const loadingProfile = computed(() => profileState.status.value === 'pending')
+const profileFailed = computed(() => profileState.status.value === 'error')
 const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
-const scheduleYear = ref(new Date().getFullYear())
+const currentYear = new Date().getFullYear()
+const scheduleYears = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2]
+const scheduleYear = ref(currentYear)
 
-const adminScheduleState = await useConvexQuery(
+const adminScheduleState = useLiveSettingsQuery(
   api.meetingSchedule.getAdminMeetingSchedule,
   () => isBoardMember.value
     ? { year: scheduleYear.value }
-    : 'skip'
+    : null
 )
 
-const serverSchedule = computed(() => adminScheduleState.data.value?.data.schedule ?? null)
-const loadingSchedule = computed(() => {
-  if (!isBoardMember.value)
-    return false
-  return adminScheduleState.status.value === 'pending'
-})
+const scheduleFailed = computed(() => adminScheduleState.status.value === 'error')
 
 function formatForDatetimeLocal(ms: number): string {
   const d = new Date(ms)
@@ -39,34 +40,42 @@ function formatForDatetimeLocal(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-const boardSlots = ref(['', '', '', ''])
-const annualSlot = ref('')
+const boardMeetingLabels = ['Board meeting 1', 'Board meeting 2', 'Board meeting 3', 'Board meeting 4']
+const initialFields = { annualSlot: '', boardSlots: boardMeetingLabels.map(() => '') }
+const latest = computed(() => {
+  const response = adminScheduleState.data.value
+  if (!isBoardMember.value || adminScheduleState.status.value !== 'success' || response?.data.year !== scheduleYear.value)
+    return
 
-watch(
-  () =>
-    ({
-      loading: loadingSchedule.value,
-      schedule: serverSchedule.value,
-      year: scheduleYear.value
-    }) as const,
-  ({ loading, schedule }) => {
-    if (loading)
-      return
-    if (!schedule) {
-      boardSlots.value = ['', '', '', '']
-      annualSlot.value = ''
-      return
-    }
-    const b = schedule.boardMeetings
-    boardSlots.value = b.map((t: number) => formatForDatetimeLocal(t))
-    annualSlot.value = formatForDatetimeLocal(schedule.annualMeeting)
-  },
-  { immediate: true }
-)
+  const schedule = response.data.schedule
+  return {
+    fields: schedule
+      ? {
+        annualSlot: formatForDatetimeLocal(schedule.annualMeeting),
+        boardSlots: boardMeetingLabels.map((_, index) => {
+          const meeting = schedule.boardMeetings[index]
+          return meeting === undefined ? '' : formatForDatetimeLocal(meeting)
+        })
+      }
+      : initialFields,
+    id: schedule?.id,
+    updatedAt: schedule?.updatedAt ?? null
+  }
+})
+const { canLoadLatest, canWrite, draft, hasConflict, hasDraft, isDirty, isReady, isWriting, loadLatest, reset, write }
+  = useServerDraft(initialFields, latest, adminScheduleState.refresh)
 
 const setSchedule = useConvexMutation(api.meetingSchedule.setMeetingSchedule)
 
-const saving = ref(false)
+function selectScheduleYear(year: number) {
+  if (isWriting.value || year === scheduleYear.value || !scheduleYears.includes(year))
+    return
+  if (isDirty.value && !window.confirm(`Discard unsaved changes for ${scheduleYear.value} and open ${year}?`))
+    return
+
+  reset()
+  scheduleYear.value = year
+}
 
 function parseOrThrowLocalDatetime(value: string, label: string): number {
   const ms = new Date(value).getTime()
@@ -77,50 +86,32 @@ function parseOrThrowLocalDatetime(value: string, label: string): number {
 }
 
 async function submitSave() {
-  const labels = [
-    'Board meeting 1',
-    'Board meeting 2',
-    'Board meeting 3',
-    'Board meeting 4',
-    'Annual meeting'
-  ] as const
+  if (!canWrite.value)
+    return
+
+  const { annualSlot, boardSlots } = draft.value
+  if (!annualSlot || boardMeetingLabels.some((_, index) => !boardSlots[index])) {
+    toast.add({
+      color: 'error',
+      description: 'Enter a date and time for every board meeting and the annual meeting.',
+      title: 'Validation'
+    })
+    return
+  }
+
   try {
-    if (!Number.isInteger(scheduleYear.value)) {
-      toast.add({
-        color: 'error',
-        description: 'Enter a valid schedule year.',
-        title: 'Validation'
-      })
-      return
-    }
+    const boardMeetings = boardMeetingLabels.map((label, index) => parseOrThrowLocalDatetime(boardSlots[index] ?? '', label))
+    const annualMeeting = parseOrThrowLocalDatetime(annualSlot, 'Annual meeting')
 
-    const b0 = boardSlots.value[0] ?? ''
-    const b1 = boardSlots.value[1] ?? ''
-    const b2 = boardSlots.value[2] ?? ''
-    const b3 = boardSlots.value[3] ?? ''
-    if (!b0 || !b1 || !b2 || !b3 || !annualSlot.value) {
-      toast.add({
-        color: 'error',
-        description: 'Enter a date and time for every board meeting and the annual meeting.',
-        title: 'Validation'
-      })
-      return
-    }
-
-    const boardMeetings = [
-      parseOrThrowLocalDatetime(b0, labels[0]),
-      parseOrThrowLocalDatetime(b1, labels[1]),
-      parseOrThrowLocalDatetime(b2, labels[2]),
-      parseOrThrowLocalDatetime(b3, labels[3])
-    ]
-    const annualMeeting = parseOrThrowLocalDatetime(annualSlot.value, labels[4])
-
-    saving.value = true
-    await setSchedule({
+    const saved = await write(expectedUpdatedAt => setSchedule({
       annualMeeting,
       boardMeetings,
+      expectedUpdatedAt,
       year: scheduleYear.value
-    })
+    }))
+    if (!saved)
+      return
+
     toast.add({
       color: 'success',
       description: 'The HOA meeting schedule is updated.',
@@ -133,8 +124,6 @@ async function submitSave() {
       description: message,
       title: 'Could not save'
     })
-  } finally {
-    saving.value = false
   }
 }
 </script>
@@ -142,7 +131,14 @@ async function submitSave() {
 <template>
   <div class="mx-auto w-full min-w-0 max-w-xl space-y-6">
     <UAlert
-      v-if="!loadingProfile && !isBoardMember"
+      v-if="profileFailed"
+      color="error"
+      variant="soft"
+      title="Could not load your board profile"
+      :actions="[{ label: 'Reload page', onClick: () => reloadNuxtApp() }]"
+    />
+    <UAlert
+      v-else-if="!loadingProfile && !isBoardMember"
       color="warning"
       variant="soft"
       title="Restricted"
@@ -162,8 +158,32 @@ async function submitSave() {
         </div>
       </template>
 
+      <UFormField
+        v-if="isBoardMember"
+        label="Schedule year"
+        name="schedule-year"
+        class="mb-5"
+      >
+        <USelect
+          id="schedule-year"
+          :model-value="scheduleYear"
+          :items="scheduleYears"
+          :disabled="isWriting"
+          class="w-full max-w-xs"
+          @update:model-value="selectScheduleYear"
+        />
+      </UFormField>
+
+      <UAlert
+        v-if="scheduleFailed"
+        class="mb-5"
+        color="error"
+        variant="soft"
+        title="Could not load the meeting schedule"
+        :actions="[{ label: 'Retry', disabled: isWriting, onClick: () => adminScheduleState.refresh() }]"
+      />
       <div
-        v-if="loadingProfile || loadingSchedule"
+        v-else-if="!isReady"
         aria-live="polite"
         class="text-sm text-muted"
         role="status"
@@ -172,70 +192,31 @@ async function submitSave() {
       </div>
 
       <form
-        v-else
+        v-if="hasDraft"
         class="space-y-5"
         novalidate
         @submit.prevent="submitSave"
       >
+        <UAlert
+          v-if="hasConflict && !isWriting"
+          role="status"
+          color="warning"
+          variant="soft"
+          title="The meeting schedule changed"
+          description="Load the latest version to replace your draft before saving the schedule."
+          :actions="[{ label: 'Load latest', disabled: !canLoadLatest, onClick: loadLatest }]"
+        />
         <UFormField
-          label="Schedule year"
-          name="schedule-year"
-        >
-          <UInput
-            id="schedule-year"
-            v-model.number="scheduleYear"
-            class="w-full max-w-xs"
-            type="number"
-            :min="new Date().getFullYear() - 1"
-            :max="new Date().getFullYear() + 2"
-            step="1"
-          />
-        </UFormField>
-
-        <UFormField
-          label="Board meeting 1"
-          name="board-0"
+          v-for="(label, index) in boardMeetingLabels"
+          :key="label"
+          :label="label"
+          :name="`board-${index}`"
           required
         >
           <UInput
-            id="board-0"
-            v-model="boardSlots[0]"
-            class="w-full max-w-md"
-            type="datetime-local"
-          />
-        </UFormField>
-        <UFormField
-          label="Board meeting 2"
-          name="board-1"
-          required
-        >
-          <UInput
-            id="board-1"
-            v-model="boardSlots[1]"
-            class="w-full max-w-md"
-            type="datetime-local"
-          />
-        </UFormField>
-        <UFormField
-          label="Board meeting 3"
-          name="board-2"
-          required
-        >
-          <UInput
-            id="board-2"
-            v-model="boardSlots[2]"
-            class="w-full max-w-md"
-            type="datetime-local"
-          />
-        </UFormField>
-        <UFormField
-          label="Board meeting 4"
-          name="board-3"
-          required
-        >
-          <UInput
-            id="board-3"
-            v-model="boardSlots[3]"
+            :id="`board-${index}`"
+            v-model="draft.boardSlots[index]"
+            :disabled="!isReady || isWriting"
             class="w-full max-w-md"
             type="datetime-local"
           />
@@ -248,7 +229,8 @@ async function submitSave() {
         >
           <UInput
             id="annual-meeting"
-            v-model="annualSlot"
+            v-model="draft.annualSlot"
+            :disabled="!isReady || isWriting"
             class="w-full max-w-md"
             type="datetime-local"
           />
@@ -257,7 +239,8 @@ async function submitSave() {
         <UButton
           color="primary"
           class="w-full sm:w-auto"
-          :loading="saving"
+          :disabled="!canWrite"
+          :loading="isWriting"
           type="submit"
         >
           Save schedule

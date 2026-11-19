@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Id } from '~~/convex/_generated/dataModel'
-
 import { ConvexHttpClient } from 'convex/browser'
 import { computed } from 'vue'
 import { api } from '~~/convex/_generated/api'
@@ -18,10 +16,10 @@ import {
 const route = useRoute()
 const runtimeConfig = useRuntimeConfig()
 
-const updateId = computed(() => route.params.id as Id<'communityUpdates'>)
+const updateId = String(route.params.id)
 
 const { data: queryResult, error } = await useAsyncData(
-  () => `community-update-${route.params.id}`,
+  `community-update-${updateId}`,
   async () => {
     if (!runtimeConfig.public.convexUrl) {
       throw createError({
@@ -33,9 +31,7 @@ const { data: queryResult, error } = await useAsyncData(
 
     try {
       const client = new ConvexHttpClient(runtimeConfig.public.convexUrl)
-      return await client.query(api.communityUpdates.getCommunityUpdatePublic, {
-        updateId: updateId.value
-      })
+      return await client.query(api.communityUpdates.getCommunityUpdatePublic, { updateId })
     } catch {
       throw createError({
         statusCode: 503,
@@ -82,7 +78,7 @@ const seoDescription = computed(() =>
 const canonicalUrl = computed(() =>
   getCommunityUpdateCanonicalUrl({
     siteUrl: runtimeConfig.public.siteUrl,
-    updateId: updateId.value
+    updateId
   })
 )
 const postedAtLabel = computed(() => {
@@ -184,7 +180,7 @@ defineOgImage('CommunityUpdate', {
       <div class="mx-auto flex max-w-2xl items-center justify-center gap-3 rounded-3xl border border-slate-200/80 bg-surface-elevated px-6 py-5 text-body-md text-slate-600 shadow-soft dark:border-slate-800 dark:text-slate-300">
         <Icon
           name="lucide:refresh-cw"
-          class="h-5 w-5 shrink-0 animate-spin text-primary-500"
+          class="h-5 w-5 shrink-0 text-primary-500 motion-safe:animate-spin"
         />
         <p role="status">
           Loading community update…
@@ -276,7 +272,7 @@ defineOgImage('CommunityUpdate', {
 
             <footer class="border-slate-200/80 border-t px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5 dark:border-slate-800">
               <time
-                :datetime="String(update.postedAt)"
+                :datetime="articlePublishedTime"
                 class="block text-sm text-slate-500 dark:text-slate-400"
                 :aria-label="`Posted ${formattedPostedAt}`"
               >

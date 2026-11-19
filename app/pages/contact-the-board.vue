@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { FormErrorEvent } from '@nuxt/ui'
+
 import {
   BOARD_CONTACT_LIMITS,
   useBoardContactForm
@@ -21,13 +23,21 @@ useHead({
 })
 
 const {
+  draft,
   isSubmitting,
-  message,
   statusAnnouncement,
-  streetAddress,
   submit,
-  submitterName
+  validate
 } = useBoardContactForm()
+
+async function focusFirstInvalidField({ errors }: FormErrorEvent) {
+  statusAnnouncement.value = null
+  const id = errors[0]?.id
+  if (id) {
+    await nextTick()
+    document.getElementById(id)?.focus()
+  }
+}
 </script>
 
 <template>
@@ -56,90 +66,99 @@ const {
           Use this form for questions or concerns for the board. Include your name and street address so we can respond appropriately.
         </p>
 
-        <p
-          aria-live="polite"
-          class="sr-only"
-          role="status"
-        >
-          {{ statusAnnouncement }}
-        </p>
-
         <M3Card
           variant="elevated"
           as="section"
         >
-          <form
+          <UForm
+            :state="draft"
+            :validate="validate"
+            :validate-on="['blur', 'change']"
+            :loading-auto="false"
             class="space-y-6"
             novalidate
-            @submit.prevent="submit"
+            @error="focusFirstInvalidField"
+            @submit="submit"
           >
             <UFormField
               label="Your name"
-              name="contact-name"
+              name="submitterName"
               required
             >
               <UInput
                 id="contact-name"
-                v-model="submitterName"
+                v-model="draft.submitterName"
                 autocomplete="name"
                 class="w-full"
-                :disabled="isSubmitting"
                 :maxlength="BOARD_CONTACT_LIMITS.name"
                 placeholder="Jane Resident"
+                :readonly="isSubmitting"
+                required
               />
             </UFormField>
 
             <UFormField
               label="Street address"
-              name="contact-street"
+              name="streetAddress"
               required
               description="e.g. 123 Rifle Ridge or 456 Fox Creek"
             >
               <UInput
                 id="contact-street"
-                v-model="streetAddress"
+                v-model="draft.streetAddress"
                 autocomplete="street-address"
                 class="w-full"
-                :disabled="isSubmitting"
                 :maxlength="BOARD_CONTACT_LIMITS.street"
                 placeholder="123 Rifle Ridge"
+                :readonly="isSubmitting"
+                required
               />
             </UFormField>
 
             <UFormField
               label="Message"
-              name="contact-message"
+              name="message"
               required
             >
               <UTextarea
                 id="contact-message"
-                v-model="message"
+                v-model="draft.message"
                 :rows="6"
                 class="w-full"
                 autoresize
-                :disabled="isSubmitting"
                 :maxlength="BOARD_CONTACT_LIMITS.message"
                 placeholder="How can we help?"
+                :readonly="isSubmitting"
+                required
               />
             </UFormField>
 
-            <M3Button
-              variant="primary"
-              size="lg"
-              button-type="submit"
-              icon="lucide:send"
-              icon-position="right"
-              class="w-full sm:w-auto"
-              :disabled="isSubmitting"
-            >
-              {{ isSubmitting ? 'Sending…' : 'Send message' }}
-            </M3Button>
-          </form>
+            <div>
+              <M3Button
+                variant="primary"
+                size="lg"
+                button-type="submit"
+                icon="lucide:send"
+                icon-position="right"
+                class="w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50 sm:w-auto"
+                :aria-disabled="isSubmitting"
+              >
+                {{ isSubmitting ? 'Sending…' : 'Send message' }}
+              </M3Button>
+              <p
+                role="status"
+                class="text-sm text-slate-600 dark:text-slate-300"
+                :class="{ 'mt-3': statusAnnouncement }"
+              >
+                {{ statusAnnouncement }}
+              </p>
+            </div>
+          </UForm>
         </M3Card>
 
         <p class="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
           <NuxtLink
-            class="font-medium text-primary-600 underline-offset-4 hover:underline dark:text-primary-400"
+            class="font-medium text-primary-700 underline-offset-4 hover:underline dark:text-primary-400"
             to="/"
           >
             Back to home

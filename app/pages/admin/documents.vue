@@ -10,7 +10,7 @@ import {
   normalizeImportantDocumentIcon,
   type ImportantDocumentCardIcon
 } from '~/config/important-document-icons'
-import { postPdfToConvexUploadUrl } from '~/utils/convexPdfUpload'
+import { assertPdfFile, postPdfToConvexUploadUrl } from '~/utils/convexPdfUpload'
 
 definePageMeta({
   convexAuth: true,
@@ -56,14 +56,21 @@ const createDescription = ref('')
 const createIcon = ref<ImportantDocumentCardIcon>(defaultImportantDocumentIcon)
 
 interface PdfRow {
+  /** Stable key so file inputs stay attached to their own row when rows are removed. */
+  id: number
   label: string
   file: File | null
 }
 
-const createRows = ref<PdfRow[]>([{ file: null, label: '' }])
+let nextRowId = 0
+function newPdfRow(): PdfRow {
+  return { file: null, id: nextRowId++, label: '' }
+}
+
+const createRows = ref<PdfRow[]>([newPdfRow()])
 
 function addCreatePdfRow() {
-  createRows.value.push({ file: null, label: '' })
+  createRows.value.push(newPdfRow())
 }
 
 function removeCreatePdfRow(index: number) {
@@ -108,6 +115,10 @@ async function submitCreate() {
 
   creating.value = true
   try {
+    // Validate every file before the first upload so a bad file cannot strand earlier blobs.
+    for (const row of rows)
+      await assertPdfFile(row.file!)
+
     const uploaded: { label: string, storageId: Id<'_storage'> }[] = []
     for (const row of rows) {
       const uploadUrl = await generateUploadUrl({}) as string
@@ -131,7 +142,7 @@ async function submitCreate() {
     createTitle.value = ''
     createDescription.value = ''
     createIcon.value = defaultImportantDocumentIcon
-    createRows.value = [{ file: null, label: '' }]
+    createRows.value = [newPdfRow()]
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not create document.'
     toast.add({
@@ -183,7 +194,7 @@ async function saveEditMeta(documentId: Id<'importantDocuments'>) {
 }
 
 /** Append PDF (per document id) */
-const appendDrafts = reactive<Record<string, { file: File | null, label: string }>>({})
+const appendDrafts = reactive<Record<string, { file: File | null, inputKey: number, label: string }>>({})
 const appendingForId = ref<string | null>(null)
 
 watch(
@@ -191,7 +202,7 @@ watch(
   (docs) => {
     for (const d of docs) {
       if (!appendDrafts[d.id])
-        appendDrafts[d.id] = { file: null, label: '' }
+        appendDrafts[d.id] = { file: null, inputKey: 0, label: '' }
     }
   },
   { immediate: true }
@@ -223,6 +234,7 @@ async function submitAppend(documentId: Id<'importantDocuments'>) {
 
   appendingForId.value = documentId
   try {
+    await assertPdfFile(draft.file)
     const uploadUrl = await generateUploadUrl({}) as string
     const storageId = await postPdfToConvexUploadUrl(uploadUrl, draft.file)
 
@@ -234,6 +246,7 @@ async function submitAppend(documentId: Id<'importantDocuments'>) {
     toast.add({ color: 'success', title: 'PDF added' })
     draft.label = ''
     draft.file = null
+    draft.inputKey++
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Append failed.'
     toast.add({ color: 'error', description: message, title: 'Could not add PDF' })
@@ -243,6 +256,9 @@ async function submitAppend(documentId: Id<'importantDocuments'>) {
 }
 
 async function onRemoveFile(documentId: Id<'importantDocuments'>, storageId: Id<'_storage'>) {
+  if (!confirm('Remove this PDF from the document? This cannot be undone.'))
+    return
+
   try {
     await removeFile({
       documentId,
@@ -259,7 +275,12 @@ async function onRemoveFile(documentId: Id<'importantDocuments'>, storageId: Id<
 const replaceInputEl = ref<HTMLInputElement | null>(null)
 const replaceJob = ref<{ documentId: Id<'importantDocuments'>, oldStorageId: Id<'_storage'> } | null>(null)
 
+const replacingStorageId = ref<string | null>(null)
+
 function openReplacePicker(documentId: Id<'importantDocuments'>, oldStorageId: Id<'_storage'>) {
+  if (replacingStorageId.value)
+    return
+
   replaceJob.value = { documentId, oldStorageId }
   replaceInputEl.value?.click()
 }
@@ -270,10 +291,12 @@ async function onReplaceFileSelected(event: Event) {
   input.value = ''
   const job = replaceJob.value
   replaceJob.value = null
-  if (!file || !job)
+  if (!file || !job || replacingStorageId.value)
     return
 
+  replacingStorageId.value = job.oldStorageId
   try {
+    await assertPdfFile(file)
     const uploadUrl = await generateUploadUrl({}) as string
     const storageId = await postPdfToConvexUploadUrl(uploadUrl, file)
 
@@ -287,6 +310,8 @@ async function onReplaceFileSelected(event: Event) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Replace failed.'
     toast.add({ color: 'error', description: message, title: 'Could not replace' })
+  } finally {
+    replacingStorageId.value = null
   }
 }
 
@@ -424,7 +449,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                 </p>
                 <div
                   v-for="(row, index) in createRows"
-                  :key="index"
+                  :key="row.id"
                   class="flex flex-col gap-3 rounded-lg border border-default p-3 sm:flex-row sm:items-end"
                 >
                   <UFormField
@@ -629,6 +654,8 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                         class="w-full sm:w-auto"
                         size="sm"
                         variant="outline"
+                        :loading="replacingStorageId === file.storageId"
+                        :disabled="!!replacingStorageId"
                         @click="openReplacePicker(doc.id, file.storageId)"
                       />
                       <UButton
@@ -662,6 +689,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     class="min-w-0 flex-1"
                   >
                     <input
+                      :key="appendDrafts[doc.id]!.inputKey"
                       accept=".pdf,application/pdf"
                       class="block w-full max-w-full text-sm"
                       type="file"

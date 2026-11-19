@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useMediaQuery } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 
 const colorMode = useColorMode()
@@ -8,6 +9,10 @@ const route = useRoute()
 const { banner, isVisible } = await useSiteBanner()
 
 const mobileNavOpen = ref(false)
+const calendar = useHoaCalendar()
+
+// Single desktop-nav breakpoint: Tailwind `lg` (64rem). Keep in sync with the lg: classes below.
+const isDesktopNav = useMediaQuery('(min-width: 64rem)')
 
 const publicNavLinks = [
   {
@@ -56,6 +61,11 @@ async function onSignOut() {
   await navigateTo('/')
 }
 
+watch(isDesktopNav, (isDesktop) => {
+  if (isDesktop)
+    closeMobileNav()
+})
+
 watch(
   () => route.fullPath,
   () => {
@@ -66,6 +76,12 @@ watch(
 
 <template>
   <div class="flex min-h-screen flex-col">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-primary-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus-ring"
+    >
+      Skip to main content
+    </a>
     <M3SiteBanner
       v-if="isVisible && banner"
       :body="banner.body"
@@ -89,12 +105,12 @@ watch(
           </span>
         </NuxtLink>
 
-        <div class="hidden items-center gap-2 md:flex">
+        <div class="hidden items-center gap-1 lg:flex">
           <NuxtLink
             v-for="link in publicNavLinks"
             :key="link.to"
             :to="link.to"
-            class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+            class="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
           >
             {{ link.label }}
           </NuxtLink>
@@ -127,7 +143,7 @@ watch(
           </ClientOnly>
         </div>
 
-        <div class="flex shrink-0 items-center gap-2 md:hidden">
+        <div class="flex shrink-0 items-center gap-2 lg:hidden">
           <ClientOnly>
             <M3IconButton
               :icon="isDark ? 'lucide:sun' : 'lucide:moon'"
@@ -151,7 +167,7 @@ watch(
             :label="mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'"
             variant="default"
             size="md"
-            :aria-controls="'mobile-site-navigation'"
+            :aria-controls="mobileNavOpen ? 'mobile-site-navigation' : undefined"
             :aria-expanded="mobileNavOpen"
             @click="toggleMobileNav"
           />
@@ -164,8 +180,8 @@ watch(
         description="Site navigation"
         side="right"
         :ui="{
-          overlay: 'bg-slate-950/50 backdrop-blur-sm',
-          content: 'md:hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-white',
+          overlay: 'site-nav-motion bg-slate-950/50 backdrop-blur-sm',
+          content: 'site-nav-motion lg:hidden bg-white text-slate-900 dark:bg-slate-950 dark:text-white',
           body: 'flex flex-1 flex-col p-5',
           footer: 'border-t border-slate-200 p-5 dark:border-slate-800'
         }"
@@ -213,7 +229,11 @@ watch(
       </USlideover>
     </header>
 
-    <main class="flex flex-1 flex-col">
+    <main
+      id="main-content"
+      tabindex="-1"
+      class="flex flex-1 flex-col focus:outline-none"
+    >
       <slot />
     </main>
 
@@ -340,17 +360,20 @@ watch(
         </div>
 
         <div class="mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-200 pt-8 dark:border-slate-800 sm:flex-row">
-          <p class="text-sm text-slate-500 dark:text-slate-500">
-            © {{ new Date().getFullYear() }} Fox Ridge HOA. All rights reserved.
+          <p class="text-sm text-slate-600 dark:text-slate-400">
+            © {{ calendar.year }} Fox Ridge HOA. All rights reserved.
           </p>
-          <div class="flex items-center gap-2 text-sm text-slate-500">
+          <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
             <NuxtLink
               to="/admin"
-              class="text-xs text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-400"
+              class="text-xs font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             >
               Admin
             </NuxtLink>
-            <span class="text-slate-300 dark:text-slate-700">•</span>
+            <span
+              class="text-slate-400 dark:text-slate-600"
+              aria-hidden="true"
+            >•</span>
             <span>Made with</span>
             <Icon
               name="lucide:heart"

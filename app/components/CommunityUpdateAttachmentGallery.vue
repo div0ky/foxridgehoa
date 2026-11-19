@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { DialogTitle } from 'reka-ui'
 import { computed, ref } from 'vue'
 
 import { getCommunityUpdateAttachmentAlt } from '~/utils/communityUpdateExcerpt'
@@ -63,7 +62,11 @@ function attachmentAlt(imageIndex: number): string {
   )
 }
 
-function openLightbox(imageIndex: number) {
+function openLightbox(imageIndex: number, event: MouseEvent) {
+  // EFFECT: Focus the clicked button so the dialog can restore focus on close.
+  if (event.currentTarget instanceof HTMLButtonElement)
+    event.currentTarget.focus({ preventScroll: true })
+
   lightboxIndex.value = imageIndex
   lightboxOpen.value = true
 }
@@ -86,8 +89,9 @@ function openLightbox(imageIndex: number) {
         <button
           type="button"
           class="focus-ring flex w-full items-center justify-center transition-opacity hover:opacity-95"
+          aria-haspopup="dialog"
           :aria-label="`View larger: ${attachmentAlt(item.index)}`"
-          @click="openLightbox(item.index)"
+          @click="openLightbox(item.index, $event)"
         >
           <img
             :src="item.src"
@@ -118,16 +122,12 @@ function openLightbox(imageIndex: number) {
     <UModal
       v-model:open="lightboxOpen"
       fullscreen
-      :close="false"
+      :title="lightboxAlt"
       :ui="{
-        body: 'p-0 flex flex-col flex-1 min-h-0 bg-slate-950 sm:max-w-none',
         content: 'max-w-none w-full h-[100dvh] flex flex-col rounded-none border-0 shadow-none bg-slate-950'
       }"
     >
-      <template #body="{ close }">
-        <DialogTitle class="sr-only">
-          {{ lightboxAlt }}
-        </DialogTitle>
+      <template #content="{ close }">
         <div class="flex min-h-0 flex-1 flex-col bg-slate-950">
           <div
             class="flex shrink-0 items-center gap-3 border-white/10 border-b bg-slate-950 px-4 py-3"
