@@ -49,7 +49,12 @@
 
   html {
     scroll-padding-top: 6rem;
-    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   body {
@@ -115,40 +120,38 @@
   }
 
   .prose {
-    font-size: var(--text-body-md, 1rem);
-    line-height: var(--text-body-md--line-height, 1.75rem);
-    @apply text-slate-700 dark:text-slate-300;
+    @apply wrap-anywhere font-sans text-body-md text-slate-800 dark:text-slate-100;
   }
 
   .prose h1 {
-    margin-top: 0;
-    margin-bottom: 1.5rem;
-    font-family: var(--font-display);
-    letter-spacing: -0.02em;
-    font-weight: 700;
-    @apply text-4xl lg:text-[2.75rem];
+    @apply mb-8 text-4xl font-bold tracking-tight;
   }
 
   .prose h2 {
-    margin-bottom: 1rem;
-    margin-top: 3rem;
-    font-family: var(--font-display);
-    letter-spacing: -0.01em;
-    font-weight: 600;
-    @apply text-2xl lg:text-4xl;
+    @apply mt-12 mb-6 text-2xl font-bold tracking-tight;
   }
 
   .prose h3 {
-    @apply mt-8 mb-3 text-xl font-semibold;
+    @apply mt-8 mb-3 text-xl font-bold;
+  }
+
+  .prose h4,
+  .prose h5,
+  .prose h6 {
+    @apply mt-6 mb-2 font-bold;
+  }
+
+  .prose h4 {
+    @apply text-lg;
   }
 
   .prose p {
-    @apply mb-6 leading-relaxed;
+    @apply my-5 text-body-md text-pretty;
   }
 
   .prose ul,
   .prose ol {
-    @apply mb-6 ml-6 space-y-2;
+    @apply my-5 ps-6 marker:text-slate-500 dark:marker:text-slate-400;
   }
 
   .prose ul {
@@ -160,23 +163,48 @@
   }
 
   .prose li {
-    @apply leading-relaxed;
+    @apply my-1.5 ps-1.5 leading-7;
+  }
+
+  .prose li :is(ul, ol) {
+    @apply my-0;
   }
 
   .prose blockquote {
-    @apply my-6 border-l-4 border-primary-400 pl-6 italic text-slate-600 dark:text-slate-400;
+    @apply my-5 border-s-4 border-primary-400 ps-4 italic text-slate-600 dark:text-slate-400;
   }
 
   .prose a {
-    @apply font-medium text-primary-600 underline-offset-2 hover:underline dark:text-primary-400;
+    @apply font-medium text-primary-700 underline underline-offset-2 dark:text-primary-400;
   }
 
   .prose img {
-    @apply my-8 rounded-2xl shadow-lg;
+    max-height: min(32rem, 85svh);
+    @apply mx-auto my-4 h-auto w-auto max-w-full rounded-xl bg-slate-100 object-contain p-4 ring-1 ring-slate-200/80 sm:p-5 dark:bg-slate-900/80 dark:ring-slate-700;
   }
 
   .prose strong {
     @apply font-semibold text-slate-900 dark:text-white;
+  }
+
+  .prose :not(pre) > code {
+    @apply rounded bg-slate-100 px-1.5 py-0.5 text-sm dark:bg-slate-800;
+  }
+
+  .prose pre {
+    @apply my-5 rounded-md border border-slate-200 bg-slate-100 px-4 py-3 text-sm/6 whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-800;
+  }
+
+  .prose table {
+    @apply my-5 w-full table-fixed text-start text-sm;
+  }
+
+  .prose :is(th, td) {
+    @apply border border-slate-200 p-2 text-start align-top sm:p-3 dark:border-slate-700;
+  }
+
+  .prose hr {
+    @apply my-8 border-slate-200 dark:border-slate-700;
   }
 
   .focus-ring {
@@ -248,35 +276,15 @@
       0 10px 40px -10px rgb(0 0 0 / 0.1),
       0 2px 10px -2px rgb(0 0 0 / 0.04);
   }
-
-  .animate-fade-in {
-    animation: fadeIn 0.6s ease-out forwards;
-  }
-
-  .animate-slide-up {
-    animation: slideUp 0.6s ease-out forwards;
-  }
-
-  .stagger-1 { animation-delay: 0.1s; }
-  .stagger-2 { animation-delay: 0.2s; }
-  .stagger-3 { animation-delay: 0.3s; }
-  .stagger-4 { animation-delay: 0.4s; }
-  .stagger-5 { animation-delay: 0.5s; }
-  .stagger-6 { animation-delay: 0.6s; }
 }
 
-@keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-@keyframes slideUp {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
+/* Unlayered so it beats Tailwind's `translate` longhand and Nuxt UI's slideover animations. */
+@media (prefers-reduced-motion: reduce) {
+  .card-interactive:hover {
+    translate: none;
   }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
+
+  .site-nav-motion {
+    animation: none !important;
   }
 }
