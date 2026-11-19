@@ -1,44 +1,68 @@
-import { Comark } from '@comark/vue'
-import { renderToString } from '@vue/server-renderer'
 import { expect, test } from 'vitest'
-import { createSSRApp, h } from 'vue'
 
-import { communityUpdateMarkdownOptions } from './communityUpdateMarkdown'
+import { renderCommunityUpdateMarkdown } from './communityUpdateMarkdown'
 
-async function renderCommunityMarkdown(markdown: string): Promise<string> {
-  const app = createSSRApp(() =>
-    h(Comark, {
-      markdown,
-      options: communityUpdateMarkdownOptions
-    })
-  )
-
-  return await renderToString(app)
-}
-
-test('community update markdown renders ordinary markdown', async () => {
-  const html = await renderCommunityMarkdown('## Pool update\n\n**Open Saturday.**')
-
-  expect(html).toContain('<h2')
-  expect(html).toContain('<strong>Open Saturday.</strong>')
-})
-
-test('community update markdown escapes raw HTML', async () => {
-  const html = await renderCommunityMarkdown([
-    '<script src="https://example.invalid/payload.js"></script>',
-    '<iframe src="https://example.invalid"></iframe>',
-    '<img src="x" onerror="alert(1)">'
+test('renders community update formatting', () => {
+  const html = renderCommunityUpdateMarkdown([
+    '# Pool update',
+    '## Hours',
+    '**Open Saturday** from *noon*.',
+    '- Bring your pass',
+    '3. Sign in',
+    '> Enter at the east gate.',
+    '[Pool rules][rules] or https://example.org/pool',
+    '[rules]: /documents/pool',
+    '![East gate](/gate.jpg)',
+    '```text\n12:00–18:00\n```',
+    '| Day | Hours |\n| --- | --- |\n| Saturday | 12–6 |'
   ].join('\n\n'))
 
-  expect(html).not.toContain('<script')
-  expect(html).not.toContain('<iframe')
-  expect(html).not.toContain('<img')
-  expect(html).toContain('&lt;script')
+  expect(html).toContain('<h1 id="pool-update">Pool update</h1>')
+  expect(html).toContain('<h2 id="hours">Hours</h2>')
+  expect(html).toContain('<p><strong>Open Saturday</strong> from <em>noon</em>.</p>')
+  expect(html).toContain('<ul>\n<li>Bring your pass</li>')
+  expect(html).toContain('<ol start="3">\n<li>Sign in</li>')
+  expect(html).toContain('<blockquote>\n<p>Enter at the east gate.</p>')
+  expect(html).toContain('<a href="/documents/pool">Pool rules</a>')
+  expect(html).toContain('<a href="https://example.org/pool">https://example.org/pool</a>')
+  expect(html).toContain('<img src="/gate.jpg" alt="East gate">')
+  expect(html).toContain('<pre><code class="language-text">12:00–18:00\n</code></pre>')
+  expect(html).toContain('<table>')
+  expect(html).toContain('<th>Hours</th>')
+  expect(html).toContain('<td>12–6</td>')
 })
 
-test('community update markdown rejects executable link schemes', async () => {
-  const html = await renderCommunityMarkdown('[Open](javascript:alert(1))')
+test('keeps raw HTML and component and attribute markup as text', () => {
+  const html = renderCommunityUpdateMarkdown([
+    '<section class="notice">Pool hours</section>',
+    '::notice{title="Hours"}\nOpen Saturday\n::',
+    '# Pool rules {#pool-rules}',
+    '[Read more](/pool){.notice}'
+  ].join('\n\n'))
 
-  expect(html).not.toContain('<a')
+  expect(html).toContain('&lt;section class=&quot;notice&quot;&gt;Pool hours&lt;/section&gt;')
+  expect(html).toContain('::notice{title=&quot;Hours&quot;}')
+  expect(html).toContain('<h1 id="pool-rules-pool-rules">Pool rules {#pool-rules}</h1>')
+  expect(html).toContain('<a href="/pool">Read more</a>{.notice}')
+})
+
+test('does not turn blocked link and image protocols into destinations', () => {
+  const html = renderCommunityUpdateMarkdown([
+    '[Link](javascript:blocked)',
+    '[File](file:///example.txt)',
+    '![Image](data:text/plain,blocked)'
+  ].join('\n\n'))
+
   expect(html).not.toContain('href=')
+  expect(html).not.toContain('src=')
+})
+
+test('preserves published fragment links across nested and repeated headings', () => {
+  const html = renderCommunityUpdateMarkdown([
+    '[Rules](#pool-rules)', '## Pool rules', '### 2. **Guests**', '## Pool rules'
+  ].join('\n\n'))
+  expect(html).toContain('href="#pool-rules"')
+  expect(html).toContain('id="pool-rules"')
+  expect(html).toContain('id="pool-rules-_2-strong-guests"')
+  expect(html).toContain('id="pool-rules-1"')
 })

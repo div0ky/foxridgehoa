@@ -15,10 +15,10 @@ defineProps<Props>()
     <div class="mx-auto flex max-w-6xl items-start gap-3 px-4 py-3.5 sm:px-6 sm:py-4 lg:px-8">
       <Icon
         name="lucide:megaphone"
-        class="mt-0.5 h-5 w-5 shrink-0 text-white drop-shadow-sm"
+        class="mt-0.5 h-5 w-5 shrink-0 text-slate-950 dark:text-slate-950"
         aria-hidden="true"
       />
-      <p class="break-words text-sm font-semibold leading-6 text-white drop-shadow-sm sm:text-body-lg">
+      <p class="min-w-0 break-words text-sm font-semibold leading-6 text-slate-950 sm:text-body-lg dark:text-slate-950">
         {{ body }}
       </p>
     </div>

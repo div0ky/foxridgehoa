@@ -4,6 +4,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server'
 import { paginationOptsValidator } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 
+import { communityUpdateHeadline } from '../shared/communityUpdateHeadline'
 import { mutation, query } from './_generated/server'
 import { authComponent } from './auth'
 import { requireBoardMember } from './authz/requireBoardMember'
@@ -115,6 +116,49 @@ export const listCommunityUpdatesPublic = query({
   }
 })
 
+async function firstImageUrl(ctx: QueryCtx, images: Doc<'communityUpdates'>['images']) {
+  for (const { storageId } of images) {
+    const url = await ctx.storage.getUrl(storageId)
+    if (url)
+      return url
+  }
+
+  return null
+}
+
+export const listCommunityUpdatePreviewsPublic = query({
+  args: {},
+  handler: async (ctx) => {
+    const docs = await ctx.db
+      .query('communityUpdates')
+      .withIndex('by_postedAt')
+      .order('desc')
+      .take(3)
+    const updates = await Promise.all(docs.map(async doc => ({
+      authorDisplayName: doc.authorDisplayName,
+      // The teaser's UTF-16 cutoff can split an emoji. Convex requires valid Unicode.
+      headline: communityUpdateHeadline(doc.bodyMarkdown).replace(/[\uD800-\uDBFF]$/u, '\uFFFD'),
+      id: doc._id,
+      imageUrl: await firstImageUrl(ctx, doc.images),
+      postedAt: doc.postedAt ?? doc.createdAt
+    })))
+
+    return { data: { updates }, ok: true as const }
+  },
+  returns: v.object({
+    data: v.object({
+      updates: v.array(v.object({
+        authorDisplayName: v.string(),
+        headline: v.string(),
+        id: v.id('communityUpdates'),
+        imageUrl: v.union(v.null(), v.string()),
+        postedAt: v.number()
+      }))
+    }),
+    ok: v.literal(true)
+  })
+})
+
 export const paginateCommunityUpdatesPublic = query({
   args: {
     paginationOpts: paginationOptsValidator
@@ -148,24 +192,33 @@ export const paginateCommunityUpdatesPublic = query({
 
 export const getCommunityUpdatePublic = query({
   args: {
-    updateId: v.id('communityUpdates')
+    updateId: v.string()
   },
   handler: async (ctx, args) => {
-    const doc = await ctx.db.get(args.updateId)
-    if (!doc) {
-      return {
-        data: { update: null },
-        ok: true as const
-      }
-    }
+    const updateId = ctx.db.normalizeId('communityUpdates', args.updateId)
+    const doc = updateId ? await ctx.db.get('communityUpdates', updateId) : null
 
     return {
-      data: {
-        update: await mapDocPublic(ctx, doc)
-      },
+      data: { update: doc ? await mapDocPublic(ctx, doc) : null },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({
+    data: v.object({
+      update: v.union(
+        v.null(),
+        v.object({
+          authorDisplayName: v.string(),
+          bodyMarkdown: v.string(),
+          createdAt: v.number(),
+          id: v.id('communityUpdates'),
+          imageUrls: v.array(v.string()),
+          postedAt: v.number()
+        })
+      )
+    }),
+    ok: v.literal(true)
+  })
 })
 
 export const listCommunityUpdatesAdmin = query({
@@ -287,6 +340,7 @@ export const deleteCommunityUpdate = mutation({
 export const updateCommunityUpdate = mutation({
   args: {
     bodyMarkdown: v.string(),
+    expectedUpdatedAt: v.optional(v.number()),
     imageStorageIds: v.optional(v.array(v.id('_storage'))),
     postedAt: v.number(),
     updateId: v.id('communityUpdates')
@@ -294,9 +348,16 @@ export const updateCommunityUpdate = mutation({
   handler: async (ctx, args) => {
     await requireBoardMember(ctx)
 
-    const doc = await ctx.db.get(args.updateId)
+    const doc = await ctx.db.get('communityUpdates', args.updateId)
     if (!doc)
       throw new ConvexError('Update not found.')
+
+    if (args.expectedUpdatedAt !== undefined && args.expectedUpdatedAt !== doc.updatedAt) {
+      throw new ConvexError({
+        code: 'STALE_SERVER_DRAFT',
+        message: 'This community update changed. Load the latest version before saving.'
+      })
+    }
 
     const trimmed = args.bodyMarkdown.trim()
     if (!trimmed)
@@ -323,18 +384,20 @@ export const updateCommunityUpdate = mutation({
         await ctx.storage.delete(storageId)
     }
 
-    const now = Date.now()
-
-    await ctx.db.patch(args.updateId, {
+    await ctx.db.patch('communityUpdates', args.updateId, {
       bodyMarkdown: trimmed,
       images: storageIds.map(storageId => ({ storageId })),
       postedAt: args.postedAt,
-      updatedAt: now
+      updatedAt: Math.max(Date.now(), doc.updatedAt + 1)
     })
 
     return {
       data: { updateId: args.updateId },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({
+    data: v.object({ updateId: v.id('communityUpdates') }),
+    ok: v.literal(true)
+  })
 })

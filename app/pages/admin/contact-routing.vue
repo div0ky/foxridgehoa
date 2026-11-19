@@ -4,6 +4,10 @@ import type { Id } from '~~/convex/_generated/dataModel'
 import { computed, ref, watch } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
+import { useLiveConvexPagination } from '~/composables/useLiveConvexPagination'
+import { useLiveSettingsQuery } from '~/composables/useLiveSettingsQuery'
+import { useServerDraft } from '~/composables/useServerDraft'
+
 definePageMeta({
   convexAuth: true,
   layout: 'admin-dashboard'
@@ -12,82 +16,74 @@ definePageMeta({
 defineOptions({ name: 'AdminContactRoutingPage' })
 
 const toast = useToast()
-
-const profileState = await useConvexQuery(api.operatorProfiles.getMyOperatorProfile, {})
-
-const profile = computed(() => profileState.data.value?.data.profile)
-const loadingProfile = computed(() => profileState.status.value === 'pending')
-const isBoardMember = computed(() => profile.value?.role === 'boardMember')
-
-const routingState = await useConvexQuery(
-  api.boardContact.getBoardContactRouting,
-  () => isBoardMember.value ? {} : 'skip'
+const session = useConvexAuth()
+const authenticatedUserId = computed(() => {
+  if (session.isPending.value || session.authError.value || !session.isAuthenticated.value)
+    return null
+  return session.user.value?.id ?? null
+})
+const profileState = useLiveSettingsQuery(
+  api.operatorProfiles.getMyOperatorProfile,
+  () => authenticatedUserId.value ? {} : null
 )
 
-const serverRouting = computed(() => routingState.data.value?.data.routing ?? null)
-const loadingRouting = computed(() => {
-  if (!isBoardMember.value)
-    return false
-  return routingState.status.value === 'pending'
+const loadingProfile = computed(() => session.isPending.value || profileState.status.value === 'pending')
+const boardOwner = computed(() => {
+  const profile = profileState.data.value?.data.profile
+  if (profileState.status.value !== 'success' || profile?.role !== 'boardMember')
+    return null
+  const userId = authenticatedUserId.value
+  return userId === profile.authUserId ? userId : null
 })
 
-interface RecipientRow {
-  displayName: string
-  email: string
-}
-
-interface SubmissionRow {
-  createdAt: number
-  emailDeliveryStatus: string
-  emailLastError?: string
-  message: string
-  streetAddress: string
-  submissionId: Id<'boardContactSubmissions'>
-  submitterName: string
-}
-
-const recipientRows = ref<RecipientRow[]>([{ displayName: '', email: '' }])
-
-watch(
-  () =>
-    ({
-      loading: loadingRouting.value,
-      routing: serverRouting.value
-    }) as const,
-  ({ loading, routing }) => {
-    if (loading)
-      return
-
-    if (!routing || routing.recipients.length === 0) {
-      recipientRows.value = [{ displayName: '', email: '' }]
-      return
-    }
-
-    recipientRows.value = routing.recipients.map((r: { displayName: string, email: string }) => ({
-      displayName: r.displayName,
-      email: r.email
-    }))
-  },
-  { immediate: true }
+const routingState = useLiveSettingsQuery(
+  api.boardContact.getBoardContactRouting,
+  () => boardOwner.value ? {} : null
 )
+const initialFields = { recipientRows: [{ displayName: '', email: '', key: 0 }] }
+const latest = computed(() => {
+  const result = routingState.data.value
+  if (!boardOwner.value || routingState.status.value !== 'success' || !result?.ok)
+    return
+
+  const routing = result.data.routing
+  return {
+    fields: routing?.recipients.length
+      ? { recipientRows: routing.recipients.map((recipient, key) => ({ ...recipient, key })) }
+      : initialFields,
+    id: routing?.routingId,
+    updatedAt: routing?.updatedAt ?? null
+  }
+})
+const { canLoadLatest, canWrite, draft, hasConflict, hasDraft, isReady, isWriting, loadLatest, reset, write }
+  = useServerDraft(initialFields, latest, routingState.refresh)
+
+watch(() => session.user.value?.id, reset, { flush: 'sync' })
 
 const setRouting = useConvexMutation(api.boardContact.setBoardContactRouting)
-const savingRouting = ref(false)
+const routingFieldsDisabled = computed(() => !isReady.value || isWriting.value || hasConflict.value)
+let nextAddedRecipientKey = -1
 
 function addRecipientRow() {
-  recipientRows.value.push({ displayName: '', email: '' })
+  draft.value.recipientRows.push({ displayName: '', email: '', key: nextAddedRecipientKey-- })
 }
 
 function removeRecipientRow(index: number) {
-  if (recipientRows.value.length <= 1) {
-    recipientRows.value = [{ displayName: '', email: '' }]
+  const recipientRows = draft.value.recipientRows
+  if (recipientRows.length === 1) {
+    draft.value.recipientRows = [{ displayName: '', email: '', key: recipientRows[0]!.key }]
     return
   }
-  recipientRows.value.splice(index, 1)
+  recipientRows.splice(index, 1)
 }
 
+// EFFECT: Save recipients against the routing version used to start the draft.
 async function submitRouting() {
-  const recipients = recipientRows.value
+  const owner = boardOwner.value
+  if (!owner || !canWrite.value)
+    return
+
+  const recipients = draft.value.recipientRows
     .map(r => ({
       displayName: r.displayName.trim(),
       email: r.email.trim()
@@ -112,158 +108,107 @@ async function submitRouting() {
     return
   }
 
-  savingRouting.value = true
   try {
-    await setRouting({ recipients })
+    const expectedRoutingId = latest.value?.id
+    const saved = await write(expectedUpdatedAt => setRouting({
+      expectedRoutingId,
+      expectedUpdatedAt,
+      recipients
+    }))
+    if (!saved || boardOwner.value !== owner)
+      return
+
     toast.add({
       color: 'success',
       description: 'Notification recipients are saved.',
       title: 'Saved'
     })
   } catch (error) {
+    if (boardOwner.value !== owner)
+      return
     const description = error instanceof Error ? error.message : 'Save failed.'
     toast.add({
       color: 'error',
       description,
       title: 'Could not save'
     })
-  } finally {
-    savingRouting.value = false
   }
 }
 
-/** Submissions inbox (paginated) */
-const PAGE_SIZE = 25
-const paginationOpts = ref<{ cursor: null | string, numItems: number }>({
-  cursor: null,
-  numItems: PAGE_SIZE
-})
-
-const submissionsState = await useConvexQuery(
+const {
+  canLoadMore: canLoadMoreSubmissions,
+  error: submissionsError,
+  initialized: submissionsInitialized,
+  isPending: loadingSubmissions,
+  loadMore: loadMoreSubmissions,
+  refresh: refreshSubmissions,
+  retry: retrySubmissions,
+  rows: liveSubmissions
+} = await useLiveConvexPagination(
   api.boardContact.listBoardContactSubmissions,
-  () => isBoardMember.value
-    ? { paginationOpts: paginationOpts.value }
-    : 'skip'
+  {
+    auth: 'required',
+    enabled: () => boardOwner.value !== null,
+    pageSize: 25,
+    selectPage: ({ data }) => ({
+      continueCursor: data.continueCursor,
+      isDone: data.isDone,
+      rows: data.page
+    })
+  }
 )
 
-const submissionPage = computed(
-  () => submissionsState.data.value?.data.page ?? []
-)
-const submissionIsDone = computed(
-  () => submissionsState.data.value?.data.isDone ?? true
-)
-const submissionContinueCursor = computed(
-  () => submissionsState.data.value?.data.continueCursor ?? null
-)
-
-const accumulatedSubmissions = ref<SubmissionRow[]>([])
-const listInitialized = ref(false)
-const viewedSubmission = ref<SubmissionRow | null>(null)
-const messageModalOpen = ref(false)
-const submissionPendingDeletion = ref<SubmissionRow | null>(null)
-const deleteModalOpen = ref(false)
+const submissions = computed(() => boardOwner.value ? liveSubmissions.value : [])
+const viewedSubmissionId = ref<Id<'boardContactSubmissions'> | null>(null)
+const pendingDeletionId = ref<Id<'boardContactSubmissions'> | null>(null)
+const viewedSubmission = computed(() => submissions.value.find(row => row.submissionId === viewedSubmissionId.value))
+const submissionPendingDeletion = computed(() => submissions.value.find(row => row.submissionId === pendingDeletionId.value))
 const deletingSubmissionId = ref<Id<'boardContactSubmissions'> | null>(null)
 const deleteSubmission = useConvexMutation(api.boardContact.deleteBoardContactSubmission)
 
-watch(
-  () =>
-    ({
-      cursor: paginationOpts.value.cursor,
-      loading: submissionsState.status.value === 'pending',
-      page: submissionPage.value
-    }) as const,
-  ({ cursor, loading, page }) => {
-    if (loading || !submissionsState.data.value?.ok)
-      return
+watch(boardOwner, () => {
+  viewedSubmissionId.value = null
+  pendingDeletionId.value = null
+}, { flush: 'sync' })
 
-    if (cursor === null) {
-      accumulatedSubmissions.value = page
-      listInitialized.value = true
-    } else {
-      accumulatedSubmissions.value = [...accumulatedSubmissions.value, ...page]
-    }
-  },
-  { deep: true, immediate: true }
-)
-
-watch(isBoardMember, (board) => {
-  if (!board) {
-    accumulatedSubmissions.value = []
-    listInitialized.value = false
-    paginationOpts.value = { cursor: null, numItems: PAGE_SIZE }
-  }
+watch(submissions, () => {
+  if (!viewedSubmission.value)
+    viewedSubmissionId.value = null
+  if (!submissionPendingDeletion.value)
+    pendingDeletionId.value = null
 })
-
-const loadingSubmissions = computed(() => {
-  if (!isBoardMember.value)
-    return false
-  return submissionsState.status.value === 'pending'
-})
-
-const canLoadMoreSubmissions = computed(
-  () => !submissionIsDone.value && submissionContinueCursor.value !== null
-)
-
-function loadMoreSubmissions() {
-  if (!submissionContinueCursor.value)
-    return
-  paginationOpts.value = {
-    cursor: submissionContinueCursor.value,
-    numItems: PAGE_SIZE
-  }
-}
-
-function refreshSubmissionList() {
-  accumulatedSubmissions.value = []
-  listInitialized.value = false
-  paginationOpts.value = { cursor: null, numItems: PAGE_SIZE }
-}
 
 function previewMessage(message: string): string {
   const compact = message.replace(/\s+/g, ' ').trim()
   return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact
 }
 
-function openMessageModal(row: SubmissionRow) {
-  viewedSubmission.value = row
-  messageModalOpen.value = true
-}
-
-function openDeleteModal(row: SubmissionRow) {
-  submissionPendingDeletion.value = row
-  deleteModalOpen.value = true
-}
-
+// EFFECT: Permanently deletes a submission. Convex updates the active pages before acknowledging the write.
 async function confirmDeleteSubmission() {
-  const row = submissionPendingDeletion.value
-  if (!row)
+  const owner = boardOwner.value
+  const submissionId = submissionPendingDeletion.value?.submissionId
+  if (!owner || !submissionId || deletingSubmissionId.value)
     return
 
-  deletingSubmissionId.value = row.submissionId
+  deletingSubmissionId.value = submissionId
   try {
-    await deleteSubmission({ submissionId: row.submissionId })
-    accumulatedSubmissions.value = accumulatedSubmissions.value.filter(
-      submission => submission.submissionId !== row.submissionId
-    )
+    const { data: { deleted } } = await deleteSubmission({ submissionId })
+    if (boardOwner.value !== owner)
+      return
 
-    if (viewedSubmission.value?.submissionId === row.submissionId) {
-      viewedSubmission.value = null
-      messageModalOpen.value = false
-    }
-
+    if (pendingDeletionId.value === submissionId)
+      pendingDeletionId.value = null
     toast.add({
-      color: 'success',
-      description: 'The contact submission was deleted.',
-      title: 'Submission deleted'
+      color: deleted ? 'success' : 'info',
+      title: deleted ? 'Submission deleted' : 'Submission already removed'
     })
-    deleteModalOpen.value = false
-    submissionPendingDeletion.value = null
-  } catch (error) {
-    const description = error instanceof Error ? error.message : 'Delete failed.'
+  } catch {
+    if (boardOwner.value !== owner)
+      return
     toast.add({
       color: 'error',
-      description,
-      title: 'Could not delete'
+      description: 'Try deleting the submission again.',
+      title: 'Could not delete submission'
     })
   } finally {
     deletingSubmissionId.value = null
@@ -307,6 +252,12 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
   if (raw === 'ERR_RESEND_NETWORK')
     return 'Network error while calling Resend.'
 
+  if (raw === 'ERR_DELIVERY_UNCONFIRMED')
+    return 'Email delivery could not be confirmed. Resend may have received the email.'
+
+  if (raw === 'ERR_RESEND_TIMEOUT')
+    return 'Resend took too long to respond and may have received the email.'
+
   if (raw.startsWith('ERR_RESEND_API:'))
     return `Resend API: ${raw.slice('ERR_RESEND_API:'.length)}`
 
@@ -316,8 +267,22 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
 
 <template>
   <div class="mx-auto w-full min-w-0 max-w-4xl space-y-8">
+    <div
+      v-if="loadingProfile"
+      class="text-sm text-muted"
+      role="status"
+    >
+      Loading board profile…
+    </div>
     <UAlert
-      v-if="!loadingProfile && !isBoardMember"
+      v-else-if="profileState.status.value === 'error'"
+      color="error"
+      variant="soft"
+      title="Could not load your board profile"
+      :actions="[{ label: 'Reload page', onClick: () => reloadNuxtApp() }]"
+    />
+    <UAlert
+      v-else-if="!boardOwner"
       color="warning"
       variant="soft"
       title="Restricted"
@@ -325,7 +290,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
       icon="i-lucide-lock"
     />
 
-    <template v-if="loadingProfile || isBoardMember">
+    <template v-else>
       <UCard>
         <template #header>
           <div>
@@ -333,47 +298,68 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               Board contact: email recipients
             </h1>
             <p class="mt-1 text-sm text-muted">
-              When a resident submits the public form, each person listed here receives the message as a direct email recipient (via Resend). Use a verified sender domain in Convex (<code class="text-xs">RESEND_FROM</code>, <code class="text-xs">RESEND_API_KEY</code>).
+              Resend emails these recipients when a resident submits the public form. If <code class="text-xs">RESEND_TO</code> is configured, those addresses go in To and any other recipients listed here receive a blind copy (BCC). Set <code class="text-xs">RESEND_API_KEY</code> and use a verified sender in <code class="text-xs">RESEND_FROM</code> in Convex.
             </p>
           </div>
         </template>
 
+        <UAlert
+          v-if="routingState.status.value === 'error'"
+          color="error"
+          variant="soft"
+          title="Could not load contact routing"
+          :actions="[{ label: 'Retry', disabled: isWriting, onClick: () => routingState.refresh() }]"
+        />
         <div
-          v-if="loadingProfile || loadingRouting"
+          v-else-if="!isReady"
           aria-live="polite"
           class="text-sm text-muted"
           role="status"
         >
-          Loading…
+          Loading recipients…
         </div>
 
         <form
-          v-else
+          v-if="hasDraft"
           class="space-y-4"
+          :class="{ 'mt-4': !isReady }"
           @submit.prevent="submitRouting"
         >
+          <UAlert
+            v-if="hasConflict && !isWriting"
+            role="status"
+            color="warning"
+            variant="soft"
+            title="Contact routing changed"
+            description="Load the latest recipients to replace your draft before saving."
+            :actions="[{ label: 'Load latest', disabled: !canLoadLatest, onClick: loadLatest }]"
+          />
           <div class="space-y-3">
             <div
-              v-for="(row, index) in recipientRows"
-              :key="index"
+              v-for="(row, index) in draft.recipientRows"
+              :key="row.key"
               class="flex flex-col gap-3 sm:flex-row sm:items-end"
             >
               <UFormField
                 class="min-w-0 flex-1"
-                :label="index === 0 ? 'Display name' : undefined"
+                label="Display name"
               >
                 <UInput
                   v-model="row.displayName"
+                  :aria-label="`Display name for recipient ${index + 1}`"
+                  :disabled="routingFieldsDisabled"
                   class="w-full"
                   placeholder="Jane Director"
                 />
               </UFormField>
               <UFormField
                 class="min-w-0 flex-1"
-                :label="index === 0 ? 'Email' : undefined"
+                label="Email"
               >
                 <UInput
                   v-model="row.email"
+                  :aria-label="`Email for recipient ${index + 1}`"
+                  :disabled="routingFieldsDisabled"
                   class="w-full"
                   placeholder="jane@example.com"
                   type="email"
@@ -383,9 +369,10 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                 color="neutral"
                 icon="i-lucide-minus"
                 class="w-full sm:w-auto"
+                :disabled="routingFieldsDisabled"
                 type="button"
                 variant="outline"
-                aria-label="Remove recipient"
+                :aria-label="`Remove recipient ${index + 1}`"
                 @click="removeRecipientRow(index)"
               />
             </div>
@@ -396,6 +383,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               color="neutral"
               icon="i-lucide-plus"
               class="w-full sm:w-auto"
+              :disabled="routingFieldsDisabled"
               type="button"
               variant="outline"
               @click="addRecipientRow"
@@ -405,7 +393,8 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
             <UButton
               color="primary"
               class="w-full sm:w-auto"
-              :loading="savingRouting"
+              :disabled="!canWrite"
+              :loading="isWriting"
               type="submit"
             >
               Save recipients
@@ -422,7 +411,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                 Contact submissions
               </h2>
               <p class="mt-1 text-sm text-muted">
-                Review, open, and delete messages from the public form (newest first in each batch).
+                Review and delete messages from the public form, newest first.
               </p>
             </div>
             <UButton
@@ -431,7 +420,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               class="w-full sm:w-auto"
               type="button"
               variant="outline"
-              @click="refreshSubmissionList"
+              @click="refreshSubmissions"
             >
               Refresh list
             </UButton>
@@ -439,7 +428,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
         </template>
 
         <div
-          v-if="loadingSubmissions && !listInitialized"
+          v-if="!submissionsInitialized && !submissionsError"
           aria-live="polite"
           class="text-sm text-muted"
           role="status"
@@ -448,7 +437,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
         </div>
 
         <div
-          v-else-if="accumulatedSubmissions.length === 0"
+          v-else-if="submissionsInitialized && !submissions.length && !submissionsError && !loadingSubmissions"
           class="flex gap-4 rounded-xl border border-dashed border-default px-4 py-5"
         >
           <Icon
@@ -461,7 +450,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               No submissions yet
             </p>
             <p class="text-sm text-muted">
-              When neighbors use Contact the Board, messages appear here in order along with delivery status so you know who saw them.
+              When neighbors use Contact the Board, their messages and email delivery status appear here.
             </p>
             <NuxtLink
               class="text-sm font-medium text-primary hover:underline"
@@ -474,13 +463,10 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
           </div>
         </div>
 
-        <div
-          v-else
-          class="space-y-4"
-        >
+        <div v-else-if="submissions.length">
           <div class="space-y-3 md:hidden">
             <article
-              v-for="row in accumulatedSubmissions"
+              v-for="row in submissions"
               :key="row.submissionId"
               class="rounded-lg border border-default p-4"
             >
@@ -524,7 +510,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                   size="sm"
                   type="button"
                   variant="subtle"
-                  @click="openMessageModal(row)"
+                  @click="viewedSubmissionId = row.submissionId"
                 >
                   Read message
                 </UButton>
@@ -536,7 +522,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                   size="sm"
                   type="button"
                   variant="soft"
-                  @click="openDeleteModal(row)"
+                  @click="pendingDeletionId = row.submissionId"
                 >
                   Delete
                 </UButton>
@@ -588,7 +574,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               </thead>
               <tbody>
                 <tr
-                  v-for="row in accumulatedSubmissions"
+                  v-for="row in submissions"
                   :key="row.submissionId"
                   class="border-b border-default last:border-0"
                 >
@@ -626,7 +612,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                         size="xs"
                         type="button"
                         variant="subtle"
-                        @click="openMessageModal(row)"
+                        @click="viewedSubmissionId = row.submissionId"
                       >
                         Read message
                       </UButton>
@@ -640,7 +626,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                       size="xs"
                       type="button"
                       variant="soft"
-                      @click="openDeleteModal(row)"
+                      @click="pendingDeletionId = row.submissionId"
                     >
                       Delete
                     </UButton>
@@ -649,27 +635,45 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               </tbody>
             </table>
           </div>
-
-          <UButton
-            v-if="canLoadMoreSubmissions"
-            block
-            color="neutral"
-            :loading="loadingSubmissions"
-            type="button"
-            variant="outline"
-            @click="loadMoreSubmissions"
-          >
-            Load older
-          </UButton>
         </div>
+
+        <UAlert
+          v-if="submissionsError"
+          :class="{ 'mt-4': submissions.length }"
+          color="error"
+          variant="soft"
+          icon="i-lucide-circle-alert"
+          role="alert"
+          :title="submissionsInitialized ? 'Could not update all submissions' : 'Could not load submissions'"
+          :actions="[{ label: 'Retry', onClick: retrySubmissions }]"
+        />
+        <p
+          v-else-if="submissionsInitialized && loadingSubmissions"
+          class="mt-4 text-sm text-muted"
+          role="status"
+        >
+          Updating submissions…
+        </p>
+        <UButton
+          v-else-if="canLoadMoreSubmissions"
+          block
+          class="mt-4"
+          color="neutral"
+          type="button"
+          variant="outline"
+          @click="loadMoreSubmissions"
+        >
+          Load older
+        </UButton>
       </UCard>
 
       <UModal
-        v-model:open="messageModalOpen"
+        :open="Boolean(viewedSubmission)"
         scrollable
         title="Contact submission"
         :description="viewedSubmission ? `${viewedSubmission.submitterName} · ${formatWhen(viewedSubmission.createdAt)}` : undefined"
         :ui="{ content: 'sm:max-w-2xl' }"
+        @update:open="open => { if (!open) viewedSubmissionId = null }"
       >
         <template #body>
           <div
@@ -708,9 +712,10 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
       </UModal>
 
       <UModal
-        v-model:open="deleteModalOpen"
+        :open="Boolean(submissionPendingDeletion)"
         title="Delete submission?"
         :description="submissionPendingDeletion ? `This permanently removes the message from ${submissionPendingDeletion.submitterName}.` : undefined"
+        @update:open="open => { if (!open) pendingDeletionId = null }"
       >
         <template #body>
           <p class="text-sm text-muted">
@@ -726,7 +731,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               :disabled="deletingSubmissionId !== null"
               type="button"
               variant="outline"
-              @click="deleteModalOpen = false"
+              @click="pendingDeletionId = null"
             >
               Cancel
             </UButton>

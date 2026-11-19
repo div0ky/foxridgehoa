@@ -1,10 +1,19 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from 'convex-test'
-import { expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { api, internal } from './_generated/api'
 import schema from './schema'
+
+vi.mock('./auth', () => ({
+  authComponent: {
+    safeGetAuthUser: async (ctx: import('./_generated/server').QueryCtx) => {
+      const identity = await ctx.auth.getUserIdentity()
+      return identity ? { _id: identity.subject } : undefined
+    }
+  }
+}))
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
 
@@ -44,7 +53,7 @@ test('submitBoardContactMessage throws when no recipients; row skipped', async (
 test('submitBoardContactMessage sends to RESEND_TO when routing is empty', async () => {
   const t = convexTest(schema, modules)
 
-  const fetchMock = vi.fn(async () =>
+  const fetchMock = vi.fn<typeof fetch>(async () =>
     Promise.resolve({
       json: async () => ({ id: 're_primary' }),
       ok: true,
@@ -96,6 +105,51 @@ test('setBoardContactRouting throws when unauthenticated', async () => {
       recipients: [{ displayName: 'A', email: 'a@example.com' }]
     })
   ).rejects.toThrow(/unauthenticated/i)
+})
+
+test('routing saves normalize recipients and reject stale board drafts', async () => {
+  const t = convexTest(schema, modules)
+  await t.run(async (ctx) => {
+    for (const authUserId of ['director', 'colleague'])
+      await ctx.db.insert('operatorProfiles', { authUserId, role: 'boardMember' })
+  })
+  const director = t.withIdentity({ subject: 'director' })
+  const colleague = t.withIdentity({ subject: 'colleague' })
+  const readRouting = async () => (await director.query(api.boardContact.getBoardContactRouting, {})).data.routing
+  const original = { recipients: [{ displayName: ' Director ', email: ' DIRECTOR@example.com ' }] }
+  const updated = { recipients: [{ displayName: 'Colleague', email: 'colleague@example.com' }] }
+  const now = Date.now()
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+
+  try {
+    expect(await readRouting()).toBeNull()
+    const { data: { routingId } } = await director.mutation(api.boardContact.setBoardContactRouting, original)
+    expect(await readRouting()).toEqual({
+      recipients: [{ displayName: 'Director', email: 'director@example.com' }],
+      routingId,
+      updatedAt: now
+    })
+    await expect(director.mutation(api.boardContact.setBoardContactRouting, {
+      ...original,
+      expectedUpdatedAt: null
+    })).rejects.toThrow(/STALE_SERVER_DRAFT/)
+
+    const version = { expectedRoutingId: routingId, expectedUpdatedAt: now }
+    await colleague.mutation(api.boardContact.setBoardContactRouting, { ...updated, ...version })
+    await expect(director.mutation(api.boardContact.setBoardContactRouting, { ...original, ...version }))
+      .rejects.toThrow(/STALE_SERVER_DRAFT/)
+    expect(await readRouting()).toEqual({ ...updated, routingId, updatedAt: now + 1 })
+
+    const replacementId = await t.run(ctx => ctx.db.insert('boardContactRouting', { ...updated, updatedAt: now + 1 }))
+    await expect(director.mutation(api.boardContact.setBoardContactRouting, {
+      ...original,
+      expectedRoutingId: routingId,
+      expectedUpdatedAt: now + 1
+    })).rejects.toThrow(/STALE_SERVER_DRAFT/)
+    expect(await readRouting()).toEqual({ ...updated, routingId: replacementId, updatedAt: now + 1 })
+  } finally {
+    clock.mockRestore()
+  }
 })
 
 test('deleteBoardContactSubmission throws when unauthenticated', async () => {
@@ -151,7 +205,7 @@ test('submitBoardContactMessage sends via Resend when configured', async () => {
     })
   })
 
-  const fetchMock = vi.fn(async () =>
+  const fetchMock = vi.fn<typeof fetch>(async () =>
     Promise.resolve({
       json: async () => ({ id: 're_456' }),
       ok: true,
@@ -218,7 +272,7 @@ test('deliverBoardContactEmail sends via Resend and marks sent', async () => {
     }
   )
 
-  const fetchMock = vi.fn(async () =>
+  const fetchMock = vi.fn<typeof fetch>(async () =>
     Promise.resolve({
       json: async () => ({ id: 're_456' }),
       ok: true,
@@ -303,6 +357,129 @@ test('deliverBoardContactEmail sends only once when actions race', async () => {
     delete process.env.RESEND_API_KEY
     delete process.env.RESEND_FROM
   }
+})
+
+describe('board contact submission budgets and delivery deadlines', () => {
+  const draft = { message: 'Pool question.', streetAddress: '7 Ridge', submitterName: 'Resident' }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubEnv('RESEND_API_KEY', 'test_key')
+    vi.stubEnv('RESEND_FROM', 'Fox <from@test.com>')
+    vi.stubEnv('RESEND_TO', 'board@example.com')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  test('the shared rolling budgets cap inserts and sends, including under concurrent submissions', async () => {
+    const t = convexTest(schema, modules)
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 202 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const submit = () => t.action(api.boardContact.submitBoardContactMessage, draft)
+    const startedAt = Date.now()
+    const burst = await Promise.allSettled(Array.from({ length: 21 }, submit))
+    expect(burst.filter(result => result.status === 'fulfilled')).toHaveLength(20)
+    expect(burst.filter(result => result.status === 'rejected')).toEqual([
+      expect.objectContaining({ reason: expect.objectContaining({ data: 'CONTACT_SUBMIT_RATE_LIMITED' }) })
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(20)
+
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query('boardContactSubmissions').collect()
+      expect(rows).toHaveLength(20)
+      await ctx.db.delete(rows[0]!._id)
+    })
+    await expect(submit()).rejects.toThrow(/CONTACT_SUBMIT_RATE_LIMITED/)
+
+    for (const minute of [10, 20, 30]) {
+      vi.setSystemTime(startedAt + minute * 60_000)
+      for (let i = 0; i < 20; i++)
+        await expect(submit()).resolves.toMatchObject({ ok: true })
+    }
+    vi.setSystemTime(startedAt + 40 * 60_000)
+    await expect(submit()).rejects.toThrow(/CONTACT_SUBMIT_RATE_LIMITED/)
+    expect(fetchMock).toHaveBeenCalledTimes(80)
+    expect(await t.run(ctx => ctx.db.query('boardContactSubmissions').collect())).toHaveLength(79)
+
+    vi.setSystemTime(startedAt + 24 * 60 * 60_000)
+    await expect(submit()).resolves.toMatchObject({ ok: true })
+    expect(fetchMock).toHaveBeenCalledTimes(81)
+  })
+
+  test.each([
+    { expectedError: 'CONTACT_SUBMIT_DELIVERY_INCOMPLETE', status: undefined, storedError: 'ERR_RESEND_TIMEOUT' },
+    { expectedError: 'CONTACT_SUBMIT_DELIVERY_FAILED', status: 422, storedError: 'ERR_RESEND_API:HTTP_422' },
+    { expectedError: null, status: 200, storedError: undefined }
+  ])('the deadline bounds a stalled Resend response with status $status', async ({ expectedError, status, storedError }) => {
+    const t = convexTest(schema, modules)
+    const { promise: stallStarted, resolve: beginStall } = Promise.withResolvers<AbortSignal | null | undefined>()
+    const fetchMock = vi.fn<typeof fetch>(async (_url, options) => {
+      const stall = () => {
+        beginStall(options?.signal)
+        return new Promise<never>(() => {})
+      }
+      if (status === undefined)
+        return stall()
+
+      const response = new Response(null, { status })
+      vi.spyOn(response, 'json').mockImplementation(stall)
+      return response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = expect(t.action(api.boardContact.submitBoardContactMessage, draft))
+    const submitted = expectedError
+      ? result.rejects.toThrow(expectedError)
+      : result.resolves.toMatchObject({ ok: true })
+    const signal = await stallStarted
+    await vi.advanceTimersByTimeAsync(8_000)
+    await submitted
+
+    expect(signal?.aborted).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const row = await t.run(ctx => ctx.db.query('boardContactSubmissions').unique())
+    expect(row).toMatchObject({
+      ...draft,
+      emailDeliveryStatus: expectedError ? 'failed' : 'sent'
+    })
+    expect(row?.emailLastError).toBe(storedError)
+  })
+
+  test('scheduled confirmation marks interrupted attempts and leaves accepted mail alone', async () => {
+    const t = convexTest(schema, modules)
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ id: 're_accepted' })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { submissionId: pendingId } = await t.mutation(internal.boardContact.createPendingBoardContactSubmission, draft)
+    const { submissionId: sendingId } = await t.mutation(internal.boardContact.createPendingBoardContactSubmission, draft)
+    await t.mutation(internal.boardContact.claimSubmissionForSending, { submissionId: sendingId })
+    const result = await t.action(api.boardContact.submitBoardContactMessage, draft)
+    expect(result.ok).toBe(true)
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const rows = await t.run(ctx => Promise.all([
+      ctx.db.get(pendingId),
+      ctx.db.get(sendingId),
+      ctx.db.get(result.data.submissionId)
+    ]))
+    const unconfirmed = expect.objectContaining({
+      ...draft,
+      emailDeliveryStatus: 'failed',
+      emailLastError: 'ERR_DELIVERY_UNCONFIRMED'
+    })
+    expect(rows).toEqual([
+      unconfirmed,
+      unconfirmed,
+      expect.objectContaining({ emailDeliveryStatus: 'sent', resendEmailId: 're_accepted' })
+    ])
+  })
 })
 
 test('deliverBoardContactEmail marks failed when Resend returns error', async () => {

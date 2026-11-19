@@ -8,20 +8,28 @@ import { requireBoardMember } from './authz/requireBoardMember'
 
 const MAX_BANNER_BODY_CHARS = 2_000
 
-async function readNewestSiteBanner(ctx: QueryCtx | MutationCtx): Promise<Doc<'siteBanner'> | null> {
+async function readSiteBanners(ctx: QueryCtx | MutationCtx) {
   const rows = await ctx.db.query('siteBanner').collect()
-  if (rows.length === 0)
-    return null
+  const newest = rows.reduce<Doc<'siteBanner'> | null>((best, row) =>
+    !best || row._creationTime > best._creationTime ? row : best, null)
+  return { newest, rows }
+}
 
-  return rows.reduce((best, row) =>
-    row._creationTime > best._creationTime ? row : best
-  )
+function assertBannerVersion(newest: Doc<'siteBanner'> | null, expected: {
+  expectedBannerId?: Doc<'siteBanner'>['_id']
+  expectedUpdatedAt?: number | null
+}) {
+  // Clearing and recreating a banner can reuse a timestamp.
+  if ((expected.expectedUpdatedAt !== undefined && expected.expectedUpdatedAt !== (newest?.updatedAt ?? null))
+    || (expected.expectedBannerId !== undefined && expected.expectedBannerId !== newest?._id)) {
+    throw new ConvexError({ code: 'STALE_SERVER_DRAFT', message: 'The site banner changed. Load the latest version.' })
+  }
 }
 
 export const getPublicSiteBanner = query({
   args: {},
   handler: async (ctx) => {
-    const doc = await readNewestSiteBanner(ctx)
+    const { newest: doc } = await readSiteBanners(ctx)
     if (!doc) {
       return {
         data: { banner: null },
@@ -46,7 +54,7 @@ export const getAdminSiteBanner = query({
   handler: async (ctx) => {
     await requireBoardMember(ctx)
 
-    const doc = await readNewestSiteBanner(ctx)
+    const { newest: doc } = await readSiteBanners(ctx)
     if (!doc) {
       return {
         data: { banner: null },
@@ -71,6 +79,8 @@ export const getAdminSiteBanner = query({
 export const setSiteBanner = mutation({
   args: {
     body: v.string(),
+    expectedBannerId: v.optional(v.id('siteBanner')),
+    expectedUpdatedAt: v.optional(v.union(v.number(), v.null())),
     showUntil: v.number()
   },
   handler: async (ctx, args) => {
@@ -89,10 +99,11 @@ export const setSiteBanner = mutation({
     if (args.showUntil <= now)
       throw new ConvexError('Show-until must be in the future.')
 
-    const rows = await ctx.db.query('siteBanner').collect()
-    const updatedAt = now
+    const { newest, rows } = await readSiteBanners(ctx)
+    assertBannerVersion(newest, args)
+    const updatedAt = newest ? Math.max(now, newest.updatedAt + 1) : now
 
-    if (rows.length === 0) {
+    if (!newest) {
       const bannerId = await ctx.db.insert('siteBanner', {
         body: trimmed,
         showUntil: args.showUntil,
@@ -103,10 +114,6 @@ export const setSiteBanner = mutation({
         ok: true as const
       }
     }
-
-    const newest = rows.reduce((best, row) =>
-      row._creationTime > best._creationTime ? row : best
-    )
 
     for (const row of rows) {
       if (row._id !== newest._id)
@@ -123,20 +130,26 @@ export const setSiteBanner = mutation({
       data: { bannerId: newest._id },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({ data: v.object({ bannerId: v.id('siteBanner') }), ok: v.literal(true) })
 })
 
 export const clearSiteBanner = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    expectedBannerId: v.optional(v.id('siteBanner')),
+    expectedUpdatedAt: v.optional(v.union(v.number(), v.null()))
+  },
+  handler: async (ctx, args) => {
     await requireBoardMember(ctx)
 
-    const rows = await ctx.db.query('siteBanner').collect()
+    const { newest, rows } = await readSiteBanners(ctx)
+    assertBannerVersion(newest, args)
     for (const row of rows)
       await ctx.db.delete(row._id)
 
     return { ok: true as const }
-  }
+  },
+  returns: v.object({ ok: v.literal(true) })
 })
 
 export const purgeExpiredSiteBanners = internalMutation({

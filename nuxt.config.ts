@@ -8,7 +8,7 @@ function withoutTrailingSlash(url: string | undefined): string | undefined {
 function publicSiteUrl(): string {
   return withoutTrailingSlash(process.env.NUXT_PUBLIC_SITE_URL)
     ?? withoutTrailingSlash(process.env.SITE_URL)
-    ?? 'https://thefoxridgehoa.org'
+    ?? 'https://www.thefoxridgehoa.org'
 }
 
 function publicConvexUrl(): string {
@@ -20,7 +20,6 @@ function publicConvexUrl(): string {
 export default defineNuxtConfig({
 
   modules: [
-    '@comark/nuxt',
     '@nuxt/fonts',
     '@nuxt/eslint',
     '@vueuse/nuxt',
@@ -76,8 +75,7 @@ export default defineNuxtConfig({
         '@vue/devtools-core',
         '@vue/devtools-kit',
         'convex/server',
-        'convex/browser',
-        '@comark/vue'
+        'convex/browser'
       ]
     }
   },

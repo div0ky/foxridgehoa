@@ -1,3 +1,7 @@
+import { communityUpdateHeadline, communityUpdateHeadlineText } from '#shared/communityUpdateHeadline'
+
+export { communityUpdateHeadline } from '#shared/communityUpdateHeadline'
+
 /** Plain-ish excerpt for teaser cards — avoids half-rendered Markdown. */
 export function communityUpdateMarkdownExcerpt(markdown: string, maxChars = 160): string {
   const condensed = markdown.replace(/\s+/g, ' ').trim()
@@ -5,14 +9,6 @@ export function communityUpdateMarkdownExcerpt(markdown: string, maxChars = 160)
     return condensed
 
   return `${condensed.slice(0, maxChars)}…`
-}
-
-/** First non-empty line, heading markers stripped — for card titles. */
-export function communityUpdateHeadline(markdown: string, maxChars = 88): string {
-  const line = markdown.split('\n').find(l => l.trim()) ?? ''
-  const stripped = line.replace(/^#+\s*/, '').trim()
-  const head = stripped.slice(0, maxChars).trim()
-  return head.length > 0 ? head : 'Community update'
 }
 
 const DEFAULT_SEO_DESCRIPTION = 'News and reminders from the Fox Ridge HOA board.'
@@ -30,14 +26,6 @@ function truncatePreviewText(text: string, maxChars: number): string {
     : clipped.slice(0, maxChars)
 
   return `${safeClip.trimEnd()}...`
-}
-
-/** First-line title from markdown, or `null` when there is no real heading line. */
-function communityUpdateHeadlineForDedup(markdown: string, maxChars = 88): string | null {
-  const line = markdown.split('\n').find(l => l.trim()) ?? ''
-  const stripped = line.replace(/^#+\s*/, '').trim()
-  const head = stripped.slice(0, maxChars).trim()
-  return head.length > 0 ? head : null
 }
 
 function stripLeadingDuplicateHeadline(plainText: string, headline: string): string {
@@ -82,7 +70,7 @@ export function getCommunityUpdateSeoDescription(
 ): string {
   const { bodyMarkdown, maxChars = 180 } = args
   const plainText = communityUpdatePlainText(bodyMarkdown)
-  const headline = communityUpdateHeadlineForDedup(bodyMarkdown)
+  const headline = communityUpdateHeadlineText(bodyMarkdown)
   const withoutDuplicateTitle = headline
     ? stripLeadingDuplicateHeadline(plainText, headline)
     : plainText

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Id } from '~~/convex/_generated/dataModel'
 
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
 import { postImageToConvexUploadUrl } from '~/utils/convexImageUpload'
@@ -11,6 +11,7 @@ interface Props {
   pendingAuth?: boolean
   /** Board member with display name — show Markdown editor */
   canPublish?: boolean
+  latestUpdatedAt?: number
   /** Board member missing name — prompt only */
   needsDisplayName?: boolean
   /** Update being edited (optional) */
@@ -20,6 +21,7 @@ interface Props {
     postedAt: number
     images: Array<{ storageId: Id<'_storage'> }>
     imageUrls: Array<string>
+    updatedAt: number
   }
 }
 
@@ -30,6 +32,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
+  loadLatest: []
   published: []
   updated: []
 }>()
@@ -57,6 +60,11 @@ const bodyMarkdown = ref('# Community update\n\nWrite your message in **Markdown
 const images = ref<ComposerImage[]>([])
 const postDateTime = ref(toLocalDateTimeInputValue(new Date()))
 const publishing = ref(false)
+const writeConflict = ref(false)
+const hasNewerRevision = computed(() => props.update !== undefined
+  && props.latestUpdatedAt !== undefined
+  && props.latestUpdatedAt > props.update.updatedAt)
+const hasConflict = computed(() => writeConflict.value || hasNewerRevision.value)
 
 const editorToolbarItems = [
   [
@@ -133,31 +141,36 @@ const updateUpdate = useConvexMutation(api.communityUpdates.updateCommunityUpdat
 
 watch(
   () => props.update,
-  (newVal) => {
-    if (newVal) {
-      bodyMarkdown.value = newVal.bodyMarkdown
-      postDateTime.value = toLocalDateTimeInputValue(new Date(newVal.postedAt))
-      images.value = newVal.images.map((img, i) => ({
+  (update) => {
+    clearImages()
+    writeConflict.value = false
+    if (update) {
+      bodyMarkdown.value = update.bodyMarkdown
+      postDateTime.value = toLocalDateTimeInputValue(new Date(update.postedAt))
+      images.value = update.images.map((img, i) => ({
         id: img.storageId,
         storageId: img.storageId,
         type: 'existing',
-        url: newVal.imageUrls[i] ?? ''
+        url: update.imageUrls[i] ?? ''
       }))
     } else {
       bodyMarkdown.value = '# Community update\n\nWrite your message in **Markdown**.'
       postDateTime.value = toLocalDateTimeInputValue(new Date())
-      images.value = []
     }
   },
   { immediate: true }
 )
 
-onBeforeUnmount(() => {
+onBeforeUnmount(clearImages)
+
+// EFFECT: Release local previews when their draft is replaced or closed.
+function clearImages() {
   for (const img of images.value) {
     if (img.type === 'new' && img.url.startsWith('blob:'))
       URL.revokeObjectURL(img.url)
   }
-})
+  images.value = []
+}
 
 function toLocalDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0')
@@ -228,6 +241,10 @@ function removeImage(index: number) {
 }
 
 async function submitPublish() {
+  if (publishing.value || hasConflict.value)
+    return
+
+  const update = props.update
   const md = bodyMarkdown.value.trim()
   if (!md) {
     toast.add({
@@ -251,7 +268,7 @@ async function submitPublish() {
   publishing.value = true
   try {
     const storageIds: Id<'_storage'>[] = []
-    for (const img of images.value) {
+    for (const img of [...images.value]) {
       if (img.type === 'existing' && img.storageId) {
         storageIds.push(img.storageId)
       } else if (img.type === 'new' && img.file) {
@@ -261,12 +278,13 @@ async function submitPublish() {
       }
     }
 
-    if (props.update) {
+    if (update) {
       await updateUpdate({
         bodyMarkdown: md,
+        expectedUpdatedAt: update.updatedAt,
         imageStorageIds: storageIds,
         postedAt,
-        updateId: props.update.id
+        updateId: update.id
       })
       toast.add({
         color: 'success',
@@ -283,7 +301,7 @@ async function submitPublish() {
 
       bodyMarkdown.value = '# Community update\n\n'
       postDateTime.value = toLocalDateTimeInputValue(new Date())
-      images.value = []
+      clearImages()
 
       toast.add({
         color: 'success',
@@ -293,8 +311,11 @@ async function submitPublish() {
       emit('published')
     }
   } catch (error) {
-    const isEdit = !!props.update
-    const actionLabel = isEdit ? 'save' : 'publish'
+    if (update && error instanceof Error && 'code' in error && error.code === 'STALE_SERVER_DRAFT') {
+      writeConflict.value = true
+      return
+    }
+    const actionLabel = update ? 'save' : 'publish'
     const message = error instanceof Error ? error.message : `${actionLabel} failed.`
     toast.add({
       color: 'error',
@@ -342,6 +363,16 @@ async function submitPublish() {
       v-else-if="canPublish"
       class="space-y-6"
     >
+      <UAlert
+        v-if="hasConflict"
+        role="status"
+        color="warning"
+        variant="soft"
+        title="This update changed while you were editing"
+        description="Loading the latest version replaces your draft. Copy any text you want to keep first, then reapply your edits."
+        :actions="[{ label: 'Load latest version', disabled: !hasNewerRevision || publishing, onClick: () => emit('loadLatest') }]"
+      />
+
       <UFormField
         label="Post date and time"
         name="community-update-posted-at"
@@ -404,7 +435,7 @@ async function submitPublish() {
             <img
               :src="img.url"
               alt=""
-              class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              class="h-full w-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
             >
             <div class="absolute inset-0 bg-slate-950/20 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center justify-center">
               <UButton
@@ -430,6 +461,7 @@ async function submitPublish() {
       <UButton
         color="primary"
         class="w-full sm:w-auto"
+        :disabled="hasConflict"
         :loading="publishing"
         @click="submitPublish"
       >

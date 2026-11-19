@@ -104,6 +104,8 @@ async function sendInviteEmail(args: {
   signInUrl: string
   temporaryPassword: string
 }): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8_000)
   try {
     const res = await fetch('https://api.resend.com/emails', {
       body: JSON.stringify({
@@ -116,12 +118,15 @@ async function sendInviteEmail(args: {
         'Authorization': `Bearer ${args.apiKey}`,
         'Content-Type': 'application/json'
       },
-      method: 'POST'
+      method: 'POST',
+      signal: controller.signal
     })
 
     return res.ok
   } catch {
     return false
+  } finally {
+    clearTimeout(timeout)
   }
 }
 

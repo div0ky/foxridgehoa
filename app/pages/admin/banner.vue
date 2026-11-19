@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { api } from '~~/convex/_generated/api'
+
+import { useLiveSettingsQuery } from '~/composables/useLiveSettingsQuery'
+import { useServerDraft } from '~/composables/useServerDraft'
 
 definePageMeta({
   convexAuth: true,
@@ -15,19 +18,16 @@ const profileState = await useConvexQuery(api.operatorProfiles.getMyOperatorProf
 
 const profile = computed(() => profileState.data.value?.data.profile)
 const loadingProfile = computed(() => profileState.status.value === 'pending')
+const profileFailed = computed(() => profileState.status.value === 'error')
 const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
-const adminBannerState = await useConvexQuery(
+const adminBannerState = useLiveSettingsQuery(
   api.siteBanner.getAdminSiteBanner,
-  () => isBoardMember.value ? {} : 'skip'
+  () => isBoardMember.value ? {} : null
 )
 
 const serverBanner = computed(() => adminBannerState.data.value?.data.banner ?? null)
-const loadingBanner = computed(() => {
-  if (!isBoardMember.value)
-    return false
-  return adminBannerState.status.value === 'pending'
-})
+const bannerFailed = computed(() => adminBannerState.status.value === 'error')
 
 function formatForDatetimeLocal(ms: number): string {
   const d = new Date(ms)
@@ -42,35 +42,32 @@ function defaultShowUntilLocal(): string {
   return formatForDatetimeLocal(d.getTime())
 }
 
-const body = ref('')
-const showUntilInput = ref(defaultShowUntilLocal())
+const initialFields = { body: '', showUntil: defaultShowUntilLocal() }
+const latest = computed(() => {
+  if (!isBoardMember.value || adminBannerState.status.value !== 'success' || !adminBannerState.data.value?.ok)
+    return
 
-watch(
-  () =>
-    ({
-      banner: serverBanner.value,
-      loading: loadingBanner.value
-    }) as const,
-  ({ banner, loading }) => {
-    if (loading)
-      return
-
-    body.value = banner?.body ?? ''
-    showUntilInput.value = banner
-      ? formatForDatetimeLocal(banner.showUntil)
-      : defaultShowUntilLocal()
-  },
-  { immediate: true }
-)
+  const banner = serverBanner.value
+  return {
+    fields: banner ? { body: banner.body, showUntil: formatForDatetimeLocal(banner.showUntil) } : initialFields,
+    id: banner?.id,
+    updatedAt: banner?.updatedAt ?? null
+  }
+})
+const { canLoadLatest, canWrite, draft, hasConflict, hasDraft, isReady, isWriting, loadLatest, write }
+  = useServerDraft(initialFields, latest, adminBannerState.refresh)
 
 const setBanner = useConvexMutation(api.siteBanner.setSiteBanner)
 const clearBanner = useConvexMutation(api.siteBanner.clearSiteBanner)
 
-const saving = ref(false)
-const clearing = ref(false)
+const saving = setBanner.pending
+const clearing = clearBanner.pending
 
 async function submitSave() {
-  const trimmed = body.value.trim()
+  if (!canWrite.value)
+    return
+
+  const trimmed = draft.value.body.trim()
   if (!trimmed) {
     toast.add({
       color: 'error',
@@ -80,7 +77,7 @@ async function submitSave() {
     return
   }
 
-  const showUntil = new Date(showUntilInput.value).getTime()
+  const showUntil = new Date(draft.value.showUntil).getTime()
   if (!Number.isFinite(showUntil)) {
     toast.add({
       color: 'error',
@@ -90,9 +87,17 @@ async function submitSave() {
     return
   }
 
-  saving.value = true
   try {
-    await setBanner({ body: trimmed, showUntil })
+    const expectedBannerId = serverBanner.value?.id
+    const saved = await write(expectedUpdatedAt => setBanner({
+      body: trimmed,
+      expectedBannerId,
+      expectedUpdatedAt,
+      showUntil
+    }))
+    if (!saved)
+      return
+
     toast.add({
       color: 'success',
       description: 'The site banner is updated.',
@@ -105,17 +110,19 @@ async function submitSave() {
       description: message,
       title: 'Could not save'
     })
-  } finally {
-    saving.value = false
   }
 }
 
 async function submitClear() {
-  clearing.value = true
+  const expectedBannerId = serverBanner.value?.id
+  if (!canWrite.value || !expectedBannerId)
+    return
+
   try {
-    await clearBanner({})
-    body.value = ''
-    showUntilInput.value = defaultShowUntilLocal()
+    const cleared = await write(expectedUpdatedAt => clearBanner({ expectedBannerId, expectedUpdatedAt }))
+    if (!cleared)
+      return
+
     toast.add({
       color: 'success',
       description: 'The site banner was removed.',
@@ -128,8 +135,6 @@ async function submitClear() {
       description: message,
       title: 'Could not clear'
     })
-  } finally {
-    clearing.value = false
   }
 }
 </script>
@@ -137,7 +142,14 @@ async function submitClear() {
 <template>
   <div class="mx-auto w-full min-w-0 max-w-xl space-y-6">
     <UAlert
-      v-if="!loadingProfile && !isBoardMember"
+      v-if="profileFailed"
+      color="error"
+      variant="soft"
+      title="Could not load your board profile"
+      :actions="[{ label: 'Reload page', onClick: () => reloadNuxtApp() }]"
+    />
+    <UAlert
+      v-else-if="!loadingProfile && !isBoardMember"
       color="warning"
       variant="soft"
       title="Restricted"
@@ -157,8 +169,16 @@ async function submitClear() {
         </div>
       </template>
 
+      <UAlert
+        v-if="bannerFailed"
+        class="mb-5"
+        color="error"
+        variant="soft"
+        title="Could not load the site banner"
+        :actions="[{ label: 'Retry', disabled: isWriting, onClick: () => adminBannerState.refresh() }]"
+      />
       <div
-        v-if="loadingProfile || loadingBanner"
+        v-else-if="!isReady"
         aria-live="polite"
         class="text-sm text-muted"
         role="status"
@@ -167,11 +187,20 @@ async function submitClear() {
       </div>
 
       <form
-        v-else
+        v-if="hasDraft"
         class="space-y-5"
         novalidate
         @submit.prevent="submitSave"
       >
+        <UAlert
+          v-if="hasConflict && !isWriting"
+          role="status"
+          color="warning"
+          variant="soft"
+          title="The site banner changed"
+          description="Load the latest version to replace your draft before saving or clearing the banner."
+          :actions="[{ label: 'Load latest', disabled: !canLoadLatest, onClick: loadLatest }]"
+        />
         <UFormField
           label="Message"
           name="banner-body"
@@ -179,7 +208,8 @@ async function submitClear() {
         >
           <UTextarea
             id="banner-body"
-            v-model="body"
+            v-model="draft.body"
+            :disabled="!isReady || isWriting"
             :rows="4"
             class="w-full"
             autoresize
@@ -195,7 +225,8 @@ async function submitClear() {
         >
           <UInput
             id="banner-until"
-            v-model="showUntilInput"
+            v-model="draft.showUntil"
+            :disabled="!isReady || isWriting"
             class="w-full max-w-md"
             type="datetime-local"
           />
@@ -205,6 +236,7 @@ async function submitClear() {
           <UButton
             color="primary"
             class="w-full sm:w-auto"
+            :disabled="!canWrite"
             :loading="saving"
             type="submit"
           >
@@ -213,7 +245,7 @@ async function submitClear() {
           <UButton
             color="neutral"
             class="w-full sm:w-auto"
-            :disabled="!serverBanner"
+            :disabled="!serverBanner || !canWrite"
             :loading="clearing"
             type="button"
             variant="outline"

@@ -62,6 +62,7 @@ interface AdminUpdate {
 }
 
 const editingUpdate = ref<AdminUpdate | null>(null)
+const latestEditingUpdate = computed(() => updates.value.find(update => update.id === editingUpdate.value?.id))
 
 async function submitDelete(id: Id<'communityUpdates'>) {
   if (!window.confirm('Delete this community update?'))
@@ -232,8 +233,10 @@ function previewSnippet(text: string, max = 160) {
         <CommunityUpdateComposer
           v-if="editingUpdate"
           :can-publish="!loadingProfile && isBoardMember && !loadingAuthUser && displayNameConfigured"
+          :latest-updated-at="latestEditingUpdate?.updatedAt"
           :needs-display-name="!loadingProfile && isBoardMember && !loadingAuthUser && !displayNameConfigured"
           :update="editingUpdate"
+          @load-latest="editingUpdate = latestEditingUpdate ?? editingUpdate"
           @updated="editingUpdate = null"
         />
       </template>

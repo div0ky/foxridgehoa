@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "bunx bun@1.4.4 install --frozen-lockfile",
+  "git": {
+    "deploymentEnabled": {
+      "fix/site-correctness-performance-1": false
+    }
+  }
+}

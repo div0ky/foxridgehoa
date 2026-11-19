@@ -1,21 +1,11 @@
 <script setup lang="ts">
 import { useIntersectionObserver } from '@vueuse/core'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
 import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttachmentGallery.vue'
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
 import { getCommunityUpdateTimelinePostedAt } from '~/utils/communityUpdateExcerpt'
-
-const {
-  canLoadMore,
-  initialized,
-  isPending,
-  loadMore,
-  refresh,
-  state: communityUpdatesQueryState,
-  updates
-} = await usePaginatedPublicCommunityUpdates(10)
 
 useSeoMeta({
   description: 'News, reminders, and community updates from the Fox Ridge HOA board.',
@@ -24,48 +14,39 @@ useSeoMeta({
   title: 'Community Updates · Fox Ridge HOA'
 })
 
-const authState = await useConvexQuery(api.auth.getCurrentUser, {})
-const profileState = await useConvexQuery(api.operatorProfiles.getMyOperatorProfile, {})
+const { authError, isAuthenticated, isPending: authPending, user } = useConvexAuth()
+const isMounted = ref(false)
+onMounted(() => {
+  isMounted.value = true
+})
+const canReadProfile = computed(() => isMounted.value && isAuthenticated.value && !authPending.value && !authError.value)
 const loadMoreTarget = ref<HTMLElement | null>(null)
 
-const convexUser = computed(() => authState.data.value?.user ?? null)
-const operatorProfile = computed(() => profileState.data.value?.data.profile ?? null)
+const [profileState, { canLoadMore, error, initialized, isPending, loadMore, retry, updates }] = await Promise.all([
+  useConvexQuery(
+    api.operatorProfiles.getMyOperatorProfile,
+    () => canReadProfile.value ? {} : 'skip',
+    { server: false }
+  ),
+  usePaginatedPublicCommunityUpdates(10)
+])
 
-const authLoading = computed(() => authState.status.value === 'pending' || profileState.status.value === 'pending')
-
-const communityUpdatesFailed = computed(
-  () =>
-    communityUpdatesQueryState.status.value === 'error'
-)
-const communityUpdatesErrorMessage = computed(() => {
-  if (!communityUpdatesFailed.value)
-    return null
-  const err = communityUpdatesQueryState.error.value
-  if (err instanceof Error && err.message.trim().length > 0)
-    return err.message
-
-  return 'We couldn\'t load updates. Check your connection and try again.'
+const loadErrorMessage = computed(() => initialized.value
+  ? 'We couldn’t load all updates. Check your connection and try again.'
+  : 'We couldn’t load updates. Check your connection and try again.')
+const displayNameConfigured = computed(() => Boolean(user.value?.name?.trim()))
+const showBoardPublishingCard = computed(() => {
+  const profile = profileState.data.value?.data.profile
+  return canReadProfile.value
+    && profileState.status.value === 'success'
+    && profile?.role === 'boardMember'
+    && profile.authUserId === user.value?.id
 })
-
-const displayNameConfigured = computed(() => {
-  const u = convexUser.value
-  if (!u || typeof u !== 'object' || !('name' in u))
-    return false
-  const n = (u as { name?: string }).name
-  return typeof n === 'string' && n.trim().length > 0
-})
-
-const showBoardPublishingCard = computed(
-  () =>
-    !authLoading.value
-    && convexUser.value != null
-    && operatorProfile.value?.role === 'boardMember'
-)
 
 useIntersectionObserver(
-  loadMoreTarget,
+  () => canLoadMore.value ? loadMoreTarget.value : null,
   ([entry]) => {
-    if (entry?.isIntersecting && !communityUpdatesFailed.value)
+    if (entry?.isIntersecting)
       loadMore()
   },
   { rootMargin: '420px' }
@@ -160,7 +141,6 @@ function isoDateTime(ms: number): string {
           <LazyCommunityUpdateComposer
             :can-publish="displayNameConfigured"
             :needs-display-name="!displayNameConfigured"
-            @published="refresh"
           />
         </div>
       </div>
@@ -172,26 +152,7 @@ function isoDateTime(ms: number): string {
       padding="lg"
     >
       <div
-        v-if="communityUpdatesFailed"
-        class="mx-auto max-w-xl text-center"
-        role="alert"
-      >
-        <p class="text-body-lg text-slate-600 dark:text-slate-400">
-          {{ communityUpdatesErrorMessage }}
-        </p>
-        <M3Button
-          class="mx-auto mt-6"
-          variant="secondary"
-          size="md"
-          icon="lucide:refresh-cw"
-          @click="refresh"
-        >
-          Try again
-        </M3Button>
-      </div>
-
-      <div
-        v-else-if="!initialized && isPending"
+        v-if="!initialized && isPending"
         class="mx-auto max-w-3xl text-center text-sm text-slate-500"
         role="status"
       >
@@ -199,7 +160,7 @@ function isoDateTime(ms: number): string {
       </div>
 
       <div
-        v-else-if="initialized && updates.length === 0"
+        v-else-if="initialized && updates.length === 0 && !canLoadMore && !isPending && !error"
         class="mx-auto max-w-md text-center"
       >
         <div class="mb-4 flex justify-center">
@@ -219,7 +180,7 @@ function isoDateTime(ms: number): string {
       </div>
 
       <div
-        v-else
+        v-else-if="initialized"
         class="mx-auto max-w-3xl"
       >
         <div class="relative space-y-10 before:absolute before:bottom-10 before:left-4 before:top-5 before:w-px before:bg-slate-200 md:space-y-12 dark:before:bg-slate-800">
@@ -282,7 +243,7 @@ function isoDateTime(ms: number): string {
         />
 
         <div
-          v-if="isPending && initialized"
+          v-if="isPending && !error"
           class="mt-6 text-center text-sm text-slate-500 dark:text-slate-400"
           role="status"
         >
@@ -302,6 +263,26 @@ function isoDateTime(ms: number): string {
             Load older updates
           </M3Button>
         </div>
+      </div>
+
+      <div
+        v-if="error"
+        class="mx-auto max-w-xl text-center"
+        :class="{ 'mt-6': initialized }"
+        role="alert"
+      >
+        <p class="text-body-lg text-slate-600 dark:text-slate-400">
+          {{ loadErrorMessage }}
+        </p>
+        <M3Button
+          class="mx-auto mt-6"
+          variant="secondary"
+          size="md"
+          icon="lucide:refresh-cw"
+          @click="retry"
+        >
+          Try again
+        </M3Button>
       </div>
     </M3Section>
   </div>

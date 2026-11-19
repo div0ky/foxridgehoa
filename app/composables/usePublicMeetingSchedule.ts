@@ -1,8 +1,8 @@
 import { useNow } from '@vueuse/core'
-import { computed, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
-import { formatHoaMeetingLine } from '~/utils/hoaMeetingDisplay'
+import { formatHoaMeetingLine, getHoaCalendarParts } from '~/utils/hoaMeetingDisplay'
 
 export interface PublicMeetingRow {
   atMs: number
@@ -12,13 +12,27 @@ export interface PublicMeetingRow {
   label: string
 }
 
+/**
+ * Shared America/Chicago calendar. The instant lives in Nuxt state so SSR and
+ * hydration agree, then refreshes once mounted in case the HTML was cached.
+ */
+export function useHoaCalendar() {
+  const nowMs = useState('hoa-calendar-now-ms', () => Date.now())
+  onMounted(() => {
+    nowMs.value = Date.now()
+  })
+
+  return computed(() => getHoaCalendarParts({ atMs: nowMs.value }))
+}
+
 export async function usePublicMeetingSchedule() {
-  const displayYear = ref(new Date().getFullYear())
+  const calendar = useHoaCalendar()
+  const displayYear = computed(() => calendar.value.year)
   const now = useNow({ interval: 60_000 })
 
   const state = await useConvexQuery(api.meetingSchedule.getPublicMeetingSchedule, () => ({
     year: displayYear.value
-  }))
+  }), { auth: 'none' })
 
   const schedule = computed(() => state.data.value?.data.schedule ?? null)
   const isPending = computed(() => state.status.value === 'pending')

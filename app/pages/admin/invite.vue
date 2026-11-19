@@ -34,6 +34,14 @@ const inviteResult = ref<{
   userEmail: string
 } | null>(null)
 const submitting = ref(false)
+const passwordCopied = ref(false)
+const needsManualHandoff = computed(() =>
+  !!inviteResult.value && !inviteResult.value.inviteEmailSent && !passwordCopied.value
+)
+
+onBeforeRouteLeave(() =>
+  !needsManualHandoff.value || window.confirm('Leave without copying the temporary password?')
+)
 
 function inviteErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Invitation failed.'
@@ -47,7 +55,6 @@ function inviteErrorMessage(error: unknown): string {
 
 async function submitInvite() {
   formError.value = null
-  inviteResult.value = null
   const trimmedEmail = email.value.trim()
   const trimmedName = name.value.trim()
 
@@ -55,6 +62,8 @@ async function submitInvite() {
     formError.value = 'Enter name and email.'
     return
   }
+  if (submitting.value || (needsManualHandoff.value && !window.confirm('Create another account without copying the previous temporary password?')))
+    return
 
   submitting.value = true
   try {
@@ -68,6 +77,7 @@ async function submitInvite() {
       temporaryPassword: result.data.temporaryPassword,
       userEmail: result.data.userEmail
     }
+    passwordCopied.value = false
     toast.add({
       color: result.data.inviteEmailSent ? 'success' : 'warning',
       description: result.data.inviteEmailSent
@@ -97,6 +107,7 @@ async function copyTemporaryPassword() {
 
   try {
     await navigator.clipboard.writeText(inviteResult.value.temporaryPassword)
+    passwordCopied.value = true
     toast.add({
       color: 'success',
       description: 'Temporary password copied.',
@@ -216,7 +227,7 @@ async function copyTemporaryPassword() {
                   Invitation email was sent to {{ inviteResult.userEmail }}. Copy this password before leaving this page.
                 </span>
                 <span v-else>
-                  Email delivery failed for {{ inviteResult.userEmail }}. Share this password manually.
+                  Email delivery could not be confirmed for {{ inviteResult.userEmail }}. Copy this password before leaving so you can share it manually.
                 </span>
               </p>
               <code class="mt-3 block break-all rounded-md bg-default px-3 py-2 text-sm text-highlighted">

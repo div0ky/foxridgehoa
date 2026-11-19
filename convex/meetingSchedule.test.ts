@@ -1,11 +1,20 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from 'convex-test'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 
 import { api } from './_generated/api'
 import { validateMeetingScheduleInput } from './meetingSchedule'
 import schema from './schema'
+
+vi.mock('./auth', () => ({
+  authComponent: {
+    safeGetAuthUser: async (ctx: import('./_generated/server').QueryCtx) => {
+      const identity = await ctx.auth.getUserIdentity()
+      return identity ? { _id: identity.subject } : undefined
+    }
+  }
+}))
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
 
@@ -74,6 +83,35 @@ test('setMeetingSchedule rejects unauthenticated caller', async () => {
       year: 2026
     })
   ).rejects.toThrow()
+})
+
+test('schedule writes compare the selected year and advance its revision on the same clock tick', async () => {
+  const t = convexTest(schema, modules)
+  await t.run(ctx => ctx.db.insert('operatorProfiles', { authUserId: 'board-test', role: 'boardMember' }))
+  const board = t.withIdentity({ subject: 'board-test' })
+  const year = new Date().getFullYear()
+  const readSchedule = async () => (await board.query(api.meetingSchedule.getAdminMeetingSchedule, { year })).data
+  const schedule = {
+    annualMeeting: Date.UTC(year, 10, 1, 18),
+    boardMeetings: [0, 3, 6, 9].map(month => Date.UTC(year, month, 1, 18)),
+    year
+  }
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now())
+
+  try {
+    expect(await readSchedule()).toEqual({ schedule: null, year })
+    await board.mutation(api.meetingSchedule.setMeetingSchedule, { ...schedule, expectedUpdatedAt: null })
+    const saved = (await readSchedule()).schedule!
+    const changed = { ...schedule, annualMeeting: Date.UTC(year, 10, 2, 18) }
+    await board.mutation(api.meetingSchedule.setMeetingSchedule, { ...changed, expectedUpdatedAt: saved.updatedAt })
+    await expect(board.mutation(api.meetingSchedule.setMeetingSchedule, { ...schedule, expectedUpdatedAt: saved.updatedAt })).rejects.toThrow(/STALE_SERVER_DRAFT/)
+    expect((await readSchedule()).schedule).toMatchObject({ annualMeeting: changed.annualMeeting, updatedAt: saved.updatedAt + 1 })
+
+    await board.mutation(api.meetingSchedule.setMeetingSchedule, schedule)
+    expect((await readSchedule()).schedule).toMatchObject({ annualMeeting: schedule.annualMeeting, updatedAt: saved.updatedAt + 2 })
+  } finally {
+    clock.mockRestore()
+  }
 })
 
 test('validateMeetingScheduleInput sorts valid board meetings', () => {
