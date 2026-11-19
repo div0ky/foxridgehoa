@@ -58,19 +58,18 @@ export function validateMeetingScheduleInput(args: {
   }
 }
 
-async function getNewestScheduleForYear(
+async function readSchedulesForYear(
   ctx: QueryCtx | MutationCtx,
   year: number
-): Promise<Doc<'meetingSchedules'> | null> {
+) {
   const rows = await ctx.db
     .query('meetingSchedules')
     .withIndex('by_year', q => q.eq('year', year))
     .collect()
 
-  if (rows.length === 0)
-    return null
-
-  return rows.reduce((best, row) => (row.updatedAt > best.updatedAt ? row : best))
+  const newest = rows.reduce<Doc<'meetingSchedules'> | null>((best, row) =>
+    !best || row.updatedAt > best.updatedAt ? row : best, null)
+  return { newest, rows }
 }
 
 const scheduleReturn = (doc: Doc<'meetingSchedules'>) => ({
@@ -86,7 +85,7 @@ export const getPublicMeetingSchedule = query({
     if (!Number.isInteger(year))
       throw new ConvexError('Year is invalid.')
 
-    const doc = await getNewestScheduleForYear(ctx, year)
+    const { newest: doc } = await readSchedulesForYear(ctx, year)
     if (!doc) {
       return {
         data: { schedule: null },
@@ -108,41 +107,53 @@ export const getAdminMeetingSchedule = query({
     if (!Number.isInteger(year))
       throw new ConvexError('Year is invalid.')
 
-    const doc = await getNewestScheduleForYear(ctx, year)
-    if (!doc) {
-      return {
-        data: { schedule: null },
-        ok: true as const
-      }
-    }
+    const { newest } = await readSchedulesForYear(ctx, year)
 
     return {
       data: {
-        schedule: {
-          id: doc._id,
-          ...scheduleReturn(doc)
-        }
+        schedule: newest
+          ? {
+            id: newest._id,
+            ...scheduleReturn(newest)
+          }
+          : null,
+        year
       },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({
+    data: v.object({
+      schedule: v.union(v.null(), v.object({
+        annualMeeting: v.number(),
+        boardMeetings: v.array(v.number()),
+        id: v.id('meetingSchedules'),
+        updatedAt: v.number(),
+        year: v.number()
+      })),
+      year: v.number()
+    }),
+    ok: v.literal(true)
+  })
 })
 
 export const setMeetingSchedule = mutation({
   args: {
     annualMeeting: v.number(),
     boardMeetings: v.array(v.number()),
+    expectedUpdatedAt: v.optional(v.union(v.number(), v.null())),
     year: v.number()
   },
   handler: async (ctx, args) => {
     await requireBoardMember(ctx)
     const schedule = validateMeetingScheduleInput(args)
 
-    const updatedAt = Date.now()
-    const rows = await ctx.db
-      .query('meetingSchedules')
-      .withIndex('by_year', q => q.eq('year', args.year))
-      .collect()
+    const { newest, rows } = await readSchedulesForYear(ctx, schedule.year)
+    if (args.expectedUpdatedAt !== undefined && args.expectedUpdatedAt !== (newest?.updatedAt ?? null)) {
+      throw new ConvexError({ code: 'STALE_SERVER_DRAFT', message: 'The meeting schedule changed. Load the latest version.' })
+    }
+    const now = Date.now()
+    const updatedAt = newest ? Math.max(now, newest.updatedAt + 1) : now
 
     const data = {
       annualMeeting: schedule.annualMeeting,
@@ -151,7 +162,7 @@ export const setMeetingSchedule = mutation({
       year: schedule.year
     }
 
-    if (rows.length === 0) {
+    if (!newest) {
       const scheduleId = await ctx.db.insert('meetingSchedules', data)
       return {
         data: { scheduleId },
@@ -159,24 +170,21 @@ export const setMeetingSchedule = mutation({
       }
     }
 
-    const keep = rows.reduce((best, row) =>
-      row.updatedAt > best.updatedAt ? row : best
-    )
-
     for (const row of rows) {
-      if (row._id !== keep._id)
+      if (row._id !== newest._id)
         await ctx.db.delete(row._id)
     }
 
-    await ctx.db.patch(keep._id, {
+    await ctx.db.patch(newest._id, {
       annualMeeting: schedule.annualMeeting,
       boardMeetings: schedule.boardMeetings,
       updatedAt
     })
 
     return {
-      data: { scheduleId: keep._id },
+      data: { scheduleId: newest._id },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({ data: v.object({ scheduleId: v.id('meetingSchedules') }), ok: v.literal(true) })
 })

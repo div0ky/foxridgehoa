@@ -23,6 +23,12 @@ const MAX_EMAIL_ERROR_LEN = 200
 const MAX_SUBMISSIONS_PAGE = 50
 const MAX_RECIPIENT_NAME = 160
 const MAX_RECIPIENT_EMAIL = 254
+const BURST_WINDOW_MS = 10 * 60_000
+const BURST_SUBMISSION_LIMIT = 20
+const DAILY_WINDOW_MS = 24 * 60 * 60_000
+const DAILY_SUBMISSION_LIMIT = 80
+const RESEND_DEADLINE_MS = 8_000
+const DELIVERY_CONFIRMATION_WINDOW_MS = 2 * 60_000
 
 const recipientValidator = v.object({
   displayName: v.string(),
@@ -49,14 +55,11 @@ function normalizeEmailList(raw: string | undefined): string[] {
 
 async function readNewestBoardContactRouting(
   ctx: QueryCtx | MutationCtx
-): Promise<Doc<'boardContactRouting'> | null> {
+) {
   const rows = await ctx.db.query('boardContactRouting').collect()
-  if (rows.length === 0)
-    return null
-
-  return rows.reduce((best, row) =>
-    row._creationTime > best._creationTime ? row : best
-  )
+  const newest = rows.reduce<Doc<'boardContactRouting'> | null>((best, row) =>
+    !best || row._creationTime > best._creationTime ? row : best, null)
+  return { newest, rows }
 }
 
 function normalizeRecipientInput(raw: { displayName: string, email: string }): {
@@ -122,7 +125,6 @@ function safeSubjectName(name: string): string {
   return oneLine.length > 80 ? `${oneLine.slice(0, 77)}…` : oneLine
 }
 
-/** Inserts a row; validation runs in the public action before this is called. */
 export const createPendingBoardContactSubmission = internalMutation({
   args: {
     message: v.string(),
@@ -130,20 +132,38 @@ export const createPendingBoardContactSubmission = internalMutation({
     submitterName: v.string()
   },
   handler: async (ctx, args) => {
+    const now = Date.now()
+    const budget = await ctx.db.query('boardContactSubmissionBudget').unique()
+    const submissionTimes = (budget?.submissionTimes ?? []).filter(time => time > now - DAILY_WINDOW_MS)
+
+    // shortcut: Saturation can block all residents, revisit the shared budget if this affects routine traffic.
+    const burstCount = submissionTimes.filter(time => time > now - BURST_WINDOW_MS).length
+    if (burstCount >= BURST_SUBMISSION_LIMIT || submissionTimes.length >= DAILY_SUBMISSION_LIMIT)
+      throw new ConvexError('CONTACT_SUBMIT_RATE_LIMITED')
+
+    submissionTimes.push(now)
+    if (budget)
+      await ctx.db.patch(budget._id, { submissionTimes })
+    else
+      await ctx.db.insert('boardContactSubmissionBudget', { submissionTimes })
+
     const submissionId = await ctx.db.insert('boardContactSubmissions', {
       emailDeliveryStatus: 'pending',
       message: args.message,
       streetAddress: args.streetAddress,
       submitterName: args.submitterName
     })
+    await ctx.scheduler.runAfter(
+      DELIVERY_CONFIRMATION_WINDOW_MS,
+      internal.boardContact.markStaleDeliveryUnconfirmed,
+      { submissionId }
+    )
     return { submissionId }
-  }
+  },
+  returns: v.object({ submissionId: v.id('boardContactSubmissions') })
 })
 
-/**
- * Saves the submission and sends email in one round-trip (no scheduler).
- * Success means Resend accepted the send and the row is `sent`.
- */
+/** Success means Resend accepted the send and the row is `sent`. */
 export const submitBoardContactMessage = action({
   args: {
     message: v.string(),
@@ -168,8 +188,14 @@ export const submitBoardContactMessage = action({
     if (!doc)
       throw new ConvexError('CONTACT_SUBMIT_INTERNAL')
 
-    if (doc.emailDeliveryStatus === 'failed')
+    if (doc.emailDeliveryStatus === 'failed') {
+      if (doc.emailLastError === 'ERR_RESEND_TIMEOUT'
+        || doc.emailLastError === 'ERR_RESEND_NETWORK'
+        || doc.emailLastError === 'ERR_DELIVERY_UNCONFIRMED') {
+        throw new ConvexError('CONTACT_SUBMIT_DELIVERY_INCOMPLETE')
+      }
       throw new ConvexError('CONTACT_SUBMIT_DELIVERY_FAILED')
+    }
 
     if (doc.emailDeliveryStatus === 'skipped_no_recipients')
       throw new ConvexError('CONTACT_SUBMIT_NO_RECIPIENTS')
@@ -181,7 +207,11 @@ export const submitBoardContactMessage = action({
       data: { submissionId },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({
+    data: v.object({ submissionId: v.id('boardContactSubmissions') }),
+    ok: v.literal(true)
+  })
 })
 
 export const getBoardContactRouting = query({
@@ -189,7 +219,7 @@ export const getBoardContactRouting = query({
   handler: async (ctx) => {
     await requireBoardMember(ctx)
 
-    const doc = await readNewestBoardContactRouting(ctx)
+    const { newest: doc } = await readNewestBoardContactRouting(ctx)
     if (!doc) {
       return {
         data: { routing: null },
@@ -207,11 +237,23 @@ export const getBoardContactRouting = query({
       },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({
+    data: v.object({
+      routing: v.union(v.null(), v.object({
+        recipients: v.array(recipientValidator),
+        routingId: v.id('boardContactRouting'),
+        updatedAt: v.number()
+      }))
+    }),
+    ok: v.literal(true)
+  })
 })
 
 export const setBoardContactRouting = mutation({
   args: {
+    expectedRoutingId: v.optional(v.id('boardContactRouting')),
+    expectedUpdatedAt: v.optional(v.union(v.number(), v.null())),
     recipients: v.array(recipientValidator)
   },
   handler: async (ctx, args) => {
@@ -246,10 +288,15 @@ export const setBoardContactRouting = mutation({
       seen.add(r.email)
     }
 
-    const rows = await ctx.db.query('boardContactRouting').collect()
-    const updatedAt = Date.now()
+    const { newest, rows } = await readNewestBoardContactRouting(ctx)
+    if ((args.expectedUpdatedAt !== undefined && args.expectedUpdatedAt !== (newest?.updatedAt ?? null))
+      || (args.expectedRoutingId !== undefined && args.expectedRoutingId !== newest?._id)) {
+      throw new ConvexError({ code: 'STALE_SERVER_DRAFT', message: 'Contact routing changed. Load the latest recipients.' })
+    }
 
-    if (rows.length === 0) {
+    const now = Date.now()
+    const updatedAt = newest ? Math.max(now, newest.updatedAt + 1) : now
+    if (!newest) {
       const routingId = await ctx.db.insert('boardContactRouting', {
         recipients: normalized,
         updatedAt
@@ -259,10 +306,6 @@ export const setBoardContactRouting = mutation({
         ok: true as const
       }
     }
-
-    const newest = rows.reduce((best, row) =>
-      row._creationTime > best._creationTime ? row : best
-    )
 
     for (const row of rows) {
       if (row._id !== newest._id)
@@ -278,7 +321,8 @@ export const setBoardContactRouting = mutation({
       data: { routingId: newest._id },
       ok: true as const
     }
-  }
+  },
+  returns: v.object({ data: v.object({ routingId: v.id('boardContactRouting') }), ok: v.literal(true) })
 })
 
 export const listBoardContactSubmissions = query({
@@ -356,7 +400,7 @@ export const getSubmissionForDelivery = internalQuery({
 export const getRoutingConfig = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const doc = await readNewestBoardContactRouting(ctx)
+    const { newest: doc } = await readNewestBoardContactRouting(ctx)
     if (!doc)
       return { recipients: [] as { displayName: string, email: string }[] }
 
@@ -425,6 +469,21 @@ export const markDeliveryFailed = internalMutation({
   }
 })
 
+export const markStaleDeliveryUnconfirmed = internalMutation({
+  args: { submissionId: v.id('boardContactSubmissions') },
+  handler: async (ctx, { submissionId }) => {
+    const doc = await ctx.db.get(submissionId)
+    if (doc?.emailDeliveryStatus === 'pending' || doc?.emailDeliveryStatus === 'sending') {
+      await ctx.db.patch(submissionId, {
+        emailDeliveryStatus: 'failed',
+        emailLastError: 'ERR_DELIVERY_UNCONFIRMED'
+      })
+    }
+    return null
+  },
+  returns: v.null()
+})
+
 async function deliverBoardContactEmailOnce(
   ctx: ActionCtx,
   { submissionId }: { submissionId: Id<'boardContactSubmissions'> }
@@ -478,8 +537,18 @@ async function deliverBoardContactEmailOnce(
   const subject = `Fox Ridge HOA — board contact: ${safeSubjectName(submission.submitterName)}`
   const text = buildPlainTextEmailBody(submission)
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  // The HTTP status confirms the outcome even if the response body takes too long.
+  let response: Response | undefined
+  const deadline = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(null)
+      controller.abort()
+    }, RESEND_DEADLINE_MS)
+  })
+  const json: unknown = await Promise.race([
+    fetch('https://api.resend.com/emails', {
       body: JSON.stringify({
         from,
         ...(bccEmails.length > 0 ? { bcc: bccEmails } : {}),
@@ -491,47 +560,41 @@ async function deliverBoardContactEmailOnce(
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      method: 'POST'
-    })
+      method: 'POST',
+      signal: controller.signal
+    }).then((res) => {
+      response = res
+      return res.json()
+    }),
+    deadline
+  ]).catch(() => null).finally(() => clearTimeout(timer))
 
-    const json: unknown = await res.json().catch(() => null)
-    const message
-      = json
-        && typeof json === 'object'
-        && 'message' in json
-        && typeof (json as { message: unknown }).message === 'string'
-        ? (json as { message: string }).message
-        : null
-
-    if (!res.ok) {
-      const detail = message
-        ? message.replace(/\s+/g, ' ').trim().slice(0, 120)
-        : `HTTP_${res.status}`
-      await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
-        error: `ERR_RESEND_API:${detail}`,
-        submissionId
-      })
-      return
-    }
-
-    const resendEmailId
-      = json
-        && typeof json === 'object'
-        && 'id' in json
-        && typeof (json as { id: unknown }).id === 'string'
-        ? (json as { id: string }).id
-        : undefined
-
-    await ctx.runMutation(internal.boardContact.markDeliverySent, {
-      resendEmailId,
-      submissionId
-    })
-  } catch {
+  if (!response) {
     await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
-      error: 'ERR_RESEND_NETWORK',
+      error: controller.signal.aborted ? 'ERR_RESEND_TIMEOUT' : 'ERR_RESEND_NETWORK',
       submissionId
     })
+    return
   }
+
+  if (!response.ok) {
+    const message = json && typeof json === 'object' && 'message' in json && typeof json.message === 'string'
+      ? json.message.replace(/\s+/g, ' ').trim().slice(0, 120)
+      : ''
+    await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
+      error: `ERR_RESEND_API:${message || `HTTP_${response.status}`}`,
+      submissionId
+    })
+    return
+  }
+
+  const resendEmailId = json && typeof json === 'object' && 'id' in json && typeof json.id === 'string'
+    ? json.id
+    : undefined
+  await ctx.runMutation(internal.boardContact.markDeliverySent, {
+    resendEmailId,
+    submissionId
+  })
 }
 
 export const deliverBoardContactEmail = internalAction({

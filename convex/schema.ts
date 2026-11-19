@@ -27,6 +27,10 @@ export default defineSchema({
     updatedAt: v.number()
   }),
 
+  boardContactSubmissionBudget: defineTable({
+    submissionTimes: v.array(v.number())
+  }),
+
   boardContactSubmissions: defineTable({
     emailDeliveryStatus: v.union(
       v.literal('pending'),
