@@ -221,7 +221,7 @@ describe('useLiveConvexPagination', () => {
     expect(leftSub.paginationOpts).toMatchObject({ cursor: 'c2', endCursor: 'c4' })
     expect(rightSub.paginationOpts).toMatchObject({ cursor: 'c4', endCursor: 'c6' })
 
-    // Left half resolves first: rows 5 and 6 must remain visible until right half resolves.
+    // Left half resolves first: rows 5 and 6 remain visible and loadMore is blocked until right resolves.
     leftSub.emit({
       data: {
         continueCursor: 'c4',
@@ -232,7 +232,7 @@ describe('useLiveConvexPagination', () => {
     })
     expect(page2Sub.active).toBe(true)
     expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
-    expect(pagination.isPending.value).toBe(true)
+    expect(pagination.canLoadMore.value).toBe(false)
 
     // Right half resolves: parent is unsubscribed and both halves swap in atomically.
     rightSub.emit({
@@ -247,12 +247,12 @@ describe('useLiveConvexPagination', () => {
     expect(leftSub.active).toBe(true)
     expect(rightSub.active).toBe(true)
     expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
-    expect(pagination.isPending.value).toBe(false)
+    expect(pagination.canLoadMore.value).toBe(true)
 
     scope.stop()
   })
 
-  test('stages first-page splits bounded at continueCursor without dropping rows', async () => {
+  test('stages BOTH halves of a first-page split and swaps them atomically without mixed rows', async () => {
     const harness = createHarness()
     harness.firstPageData.value = {
       data: {
@@ -276,25 +276,58 @@ describe('useLiveConvexPagination', () => {
       })
     })
 
-    expect(harness.subscriptions).toHaveLength(1)
-    const stagedRight = harness.subscriptions[0]!
+    // Both left [null, c2] and right [c2, c4] are staged together.
+    expect(harness.subscriptions).toHaveLength(2)
+    const stagedLeft = harness.subscriptions[0]!
+    const stagedRight = harness.subscriptions[1]!
+    expect(stagedLeft.paginationOpts).toMatchObject({ cursor: null, endCursor: 'c2' })
     expect(stagedRight.paginationOpts).toMatchObject({ cursor: 'c2', endCursor: 'c4' })
-    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4'])
-    expect(pagination.isPending.value).toBe(true)
+    expect(pagination.canLoadMore.value).toBe(false)
 
+    // Right half resolves first with a live edit (row 2 deleted, 2b inserted before 3):
+    // must NOT commit early or produce a mixed [1, 2, 3, 4, 2b] list.
     stagedRight.emit({
       data: {
         continueCursor: 'c4',
         isDone: false,
-        items: [{ id: '3' }, { id: '4' }]
+        items: [{ id: '2b' }, { id: '3' }, { id: '4' }]
       },
       ok: true
     })
-
     expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4'])
-    expect(pagination.isPending.value).toBe(false)
+    expect(pagination.canLoadMore.value).toBe(false)
 
-    // Once page 0 shrinks to [1, 2], rows [3, 4] remain present from the committed right half.
+    // Left half resolves with [1]: both swap atomically in exact order before useConvexQuery settles.
+    stagedLeft.emit({
+      data: {
+        continueCursor: 'c2',
+        isDone: false,
+        items: [{ id: '1' }]
+      },
+      ok: true
+    })
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2b', '3', '4'])
+    expect(pagination.canLoadMore.value).toBe(true)
+
+    // Once useConvexQuery settles on the narrowed left page, temporary stagedLeft unsubscribes.
+    harness.firstPageData.value = {
+      data: {
+        continueCursor: 'c2',
+        isDone: false,
+        items: [{ id: '1' }]
+      },
+      ok: true
+    }
+    await nextTick()
+    expect(stagedLeft.active).toBe(false)
+    expect(stagedRight.active).toBe(true)
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2b', '3', '4'])
+
+    scope.stop()
+  })
+
+  test('keeps last complete snapshot visible during SplitRequired until replacement halves resolve', async () => {
+    const harness = createHarness()
     harness.firstPageData.value = {
       data: {
         continueCursor: 'c2',
@@ -303,8 +336,84 @@ describe('useLiveConvexPagination', () => {
       },
       ok: true
     }
+
+    const scope = effectScope()
+    let pagination!: Awaited<ReturnType<typeof useLiveConvexPagination<MockPageResponse, { id: string }>>>
+    await scope.run(async () => {
+      pagination = await useLiveConvexPagination<MockPageResponse, { id: string }>({
+        extractPage: extractMockPage,
+        getItemId: item => item.id,
+        pageSize: 2,
+        query: dummyQuery
+      })
+    })
+
+    pagination.loadMore()
+    const page2Sub = harness.subscriptions[0]!
+    page2Sub.emit({
+      data: {
+        continueCursor: 'c6',
+        isDone: false,
+        items: [{ id: '3' }, { id: '4' }, { id: '5' }, { id: '6' }]
+      },
+      ok: true
+    })
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
+
+    // Convex emits an incomplete SplitRequired payload containing only [3, 4].
+    page2Sub.emit({
+      data: {
+        continueCursor: 'c4',
+        isDone: false,
+        items: [{ id: '3' }, { id: '4' }],
+        pageStatus: 'SplitRequired',
+        splitCursor: 'c4'
+      },
+      ok: true
+    })
+
+    // All 6 rows must remain visible while the staged halves load across [c2, c4] and [c4, c6].
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
+    expect(harness.subscriptions).toHaveLength(3)
+    const leftSub = harness.subscriptions[1]!
+    const rightSub = harness.subscriptions[2]!
+    expect(leftSub.paginationOpts).toMatchObject({ cursor: 'c2', endCursor: 'c4' })
+    expect(rightSub.paginationOpts).toMatchObject({ cursor: 'c4', endCursor: 'c6' })
+
+    leftSub.emit({
+      data: {
+        continueCursor: 'c4',
+        isDone: false,
+        items: [{ id: '3' }, { id: '4' }]
+      },
+      ok: true
+    })
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
+
+    rightSub.emit({
+      data: {
+        continueCursor: 'c6',
+        isDone: false,
+        items: [{ id: '5' }, { id: '6' }]
+      },
+      ok: true
+    })
+    expect(page2Sub.active).toBe(false)
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
+
+    // Also verify SplitRequired on page 0 keeps its last complete snapshot visible.
+    harness.firstPageData.value = {
+      data: {
+        continueCursor: 'c1',
+        isDone: false,
+        items: [{ id: '1' }],
+        pageStatus: 'SplitRequired',
+        splitCursor: 'c1'
+      },
+      ok: true
+    }
     await nextTick()
-    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4'])
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
 
     scope.stop()
   })
