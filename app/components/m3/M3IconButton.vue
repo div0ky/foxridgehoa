@@ -28,11 +28,12 @@ const sizeClasses = {
   <button
     type="button"
     :aria-label="label"
-    class="inline-flex items-center justify-center rounded-xl transition-all duration-300 focus-ring"
+    class="inline-flex items-center justify-center rounded-xl transition-[background-color,color,box-shadow,opacity] duration-300 focus-ring"
     :class="[variantClasses[variant], sizeClasses[size]]"
   >
     <Icon
       :name="icon"
+      aria-hidden="true"
       :class="{
         'h-4 w-4': size === 'sm',
         'h-5 w-5': size === 'md',

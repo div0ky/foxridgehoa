@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useEventListener } from '@vueuse/core'
 import { DialogTitle } from 'reka-ui'
 import { computed, ref } from 'vue'
 
@@ -55,6 +56,8 @@ const lightboxCaption = computed(() => {
   return `${text.slice(0, 69)}…`
 })
 
+const hasMultipleImages = computed(() => props.imageUrls.length > 1)
+
 function attachmentAlt(imageIndex: number): string {
   return getCommunityUpdateAttachmentAlt(
     props.bodyMarkdown,
@@ -66,6 +69,33 @@ function attachmentAlt(imageIndex: number): string {
 function openLightbox(imageIndex: number) {
   lightboxIndex.value = imageIndex
   lightboxOpen.value = true
+}
+
+function showPreviousImage() {
+  if (!hasMultipleImages.value)
+    return
+  lightboxIndex.value = (lightboxIndex.value - 1 + props.imageUrls.length) % props.imageUrls.length
+}
+
+function showNextImage() {
+  if (!hasMultipleImages.value)
+    return
+  lightboxIndex.value = (lightboxIndex.value + 1) % props.imageUrls.length
+}
+
+if (import.meta.client) {
+  useEventListener(window, 'keydown', (event: KeyboardEvent) => {
+    if (!lightboxOpen.value || !hasMultipleImages.value)
+      return
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      showPreviousImage()
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      showNextImage()
+    }
+  })
 }
 </script>
 
@@ -79,13 +109,13 @@ function openLightbox(imageIndex: number) {
         v-for="(item, displayedIdx) in previewItems"
         :key="`${postId ?? 'update'}-att-${item.index}-${displayedIdx}`"
         :class="[
-          'flex cursor-zoom-in items-center justify-center bg-slate-100 px-4 py-5 sm:px-6 sm:py-6 dark:bg-slate-900/80',
+          'flex items-center justify-center bg-slate-100 px-4 py-5 sm:px-6 sm:py-6 dark:bg-slate-900/80',
           displayedIdx > 0 ? 'border-slate-200/80 border-t dark:border-slate-700' : ''
         ]"
       >
         <button
           type="button"
-          class="focus-ring flex w-full items-center justify-center transition-opacity hover:opacity-95"
+          class="focus-ring flex w-full cursor-zoom-in items-center justify-center transition-opacity hover:opacity-95"
           :aria-label="`View larger: ${attachmentAlt(item.index)}`"
           @click="openLightbox(item.index)"
         >
@@ -135,6 +165,30 @@ function openLightbox(imageIndex: number) {
             <p class="min-w-0 flex-1 text-sm text-slate-200 leading-snug">
               {{ lightboxCaption }}
             </p>
+            <div
+              v-if="hasMultipleImages"
+              class="flex shrink-0 items-center gap-1"
+            >
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-chevron-left"
+                class="text-white"
+                aria-label="Previous image"
+                @click="showPreviousImage"
+              />
+              <span class="px-1.5 text-xs font-medium text-slate-300 tabular-nums">
+                {{ lightboxIndex + 1 }} / {{ imageUrls.length }}
+              </span>
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-chevron-right"
+                class="text-white"
+                aria-label="Next image"
+                @click="showNextImage"
+              />
+            </div>
             <UButton
               color="neutral"
               variant="ghost"

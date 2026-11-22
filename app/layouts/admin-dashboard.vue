@@ -6,6 +6,15 @@ import { api } from '~~/convex/_generated/api'
 
 defineOptions({ name: 'AdminDashboardLayout' })
 
+useHead({
+  meta: [
+    {
+      content: 'noindex, nofollow',
+      name: 'robots'
+    }
+  ]
+})
+
 const route = useRoute()
 const sidebarOpen = ref(false)
 

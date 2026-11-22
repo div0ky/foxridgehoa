@@ -3,7 +3,7 @@ import { api } from '~~/convex/_generated/api'
 
 /** Public landing-page documents (Convex reactive query). */
 export async function useImportantDocuments() {
-  const state = await useConvexQuery(api.importantDocuments.listImportantDocumentsPublic, {})
+  const state = await useConvexQuery(api.importantDocuments.listImportantDocumentsPublic, {}, { auth: 'none' })
 
   const documents = computed(() => state.data.value?.data.documents ?? [])
   const isPending = computed(() => state.status.value === 'pending')

@@ -50,13 +50,7 @@ function normalizeEmailList(raw: string | undefined): string[] {
 async function readNewestBoardContactRouting(
   ctx: QueryCtx | MutationCtx
 ): Promise<Doc<'boardContactRouting'> | null> {
-  const rows = await ctx.db.query('boardContactRouting').collect()
-  if (rows.length === 0)
-    return null
-
-  return rows.reduce((best, row) =>
-    row._creationTime > best._creationTime ? row : best
-  )
+  return await ctx.db.query('boardContactRouting').order('desc').first()
 }
 
 function normalizeRecipientInput(raw: { displayName: string, email: string }): {
@@ -159,22 +153,18 @@ export const submitBoardContactMessage = action({
     )
     const { submissionId } = insertResult
 
-    await deliverBoardContactEmailOnce(ctx, { submissionId })
+    const deliveryStatus = await deliverBoardContactEmailOnce(ctx, { submissionId })
 
-    const doc = await ctx.runQuery(internal.boardContact.getSubmissionForDelivery, {
-      submissionId
-    })
-
-    if (!doc)
+    if (deliveryStatus === 'missing')
       throw new ConvexError('CONTACT_SUBMIT_INTERNAL')
 
-    if (doc.emailDeliveryStatus === 'failed')
+    if (deliveryStatus === 'failed')
       throw new ConvexError('CONTACT_SUBMIT_DELIVERY_FAILED')
 
-    if (doc.emailDeliveryStatus === 'skipped_no_recipients')
+    if (deliveryStatus === 'skipped_no_recipients')
       throw new ConvexError('CONTACT_SUBMIT_NO_RECIPIENTS')
 
-    if (doc.emailDeliveryStatus !== 'sent')
+    if (deliveryStatus !== 'sent')
       throw new ConvexError('CONTACT_SUBMIT_DELIVERY_INCOMPLETE')
 
     return {
@@ -397,13 +387,14 @@ export const markDeliverySent = internalMutation({
   handler: async (ctx, { resendEmailId, submissionId }) => {
     const doc = await ctx.db.get(submissionId)
     if (!doc || doc.emailDeliveryStatus !== 'sending')
-      return
+      return { updated: false as const }
 
     await ctx.db.patch(submissionId, {
       emailDeliveryStatus: 'sent',
       emailLastError: undefined,
       resendEmailId
     })
+    return { updated: true as const }
   }
 })
 
@@ -425,18 +416,28 @@ export const markDeliveryFailed = internalMutation({
   }
 })
 
+type DeliveryOutcome = 'failed' | 'incomplete' | 'missing' | 'sent' | 'skipped_no_recipients'
+
 async function deliverBoardContactEmailOnce(
   ctx: ActionCtx,
   { submissionId }: { submissionId: Id<'boardContactSubmissions'> }
-): Promise<void> {
+): Promise<DeliveryOutcome> {
   const submission = await ctx.runQuery(internal.boardContact.getSubmissionForDelivery, {
     submissionId
   })
   if (!submission)
-    return
+    return 'missing'
 
-  if (submission.emailDeliveryStatus !== 'pending')
-    return
+  if (submission.emailDeliveryStatus !== 'pending') {
+    if (
+      submission.emailDeliveryStatus === 'sent'
+      || submission.emailDeliveryStatus === 'failed'
+      || submission.emailDeliveryStatus === 'skipped_no_recipients'
+    ) {
+      return submission.emailDeliveryStatus
+    }
+    return 'incomplete'
+  }
 
   const routing = await ctx.runQuery(internal.boardContact.getRoutingConfig, {})
   const routingEmails = [
@@ -455,14 +456,14 @@ async function deliverBoardContactEmailOnce(
 
   if (recipientEmails.length === 0) {
     await ctx.runMutation(internal.boardContact.markDeliverySkipped, { submissionId })
-    return
+    return 'skipped_no_recipients'
   }
 
   const claimResult = await ctx.runMutation(internal.boardContact.claimSubmissionForSending, {
     submissionId
   })
   if (!claimResult.claimed)
-    return
+    return 'incomplete'
 
   const apiKey = process.env.RESEND_API_KEY
   const from = process.env.RESEND_FROM
@@ -472,7 +473,7 @@ async function deliverBoardContactEmailOnce(
       error: 'ERR_MISSING_RESEND_ENV',
       submissionId
     })
-    return
+    return 'failed'
   }
 
   const subject = `Fox Ridge HOA — board contact: ${safeSubjectName(submission.submitterName)}`
@@ -491,7 +492,8 @@ async function deliverBoardContactEmailOnce(
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      method: 'POST'
+      method: 'POST',
+      signal: AbortSignal.timeout(15_000)
     })
 
     const json: unknown = await res.json().catch(() => null)
@@ -511,7 +513,7 @@ async function deliverBoardContactEmailOnce(
         error: `ERR_RESEND_API:${detail}`,
         submissionId
       })
-      return
+      return 'failed'
     }
 
     const resendEmailId
@@ -522,15 +524,17 @@ async function deliverBoardContactEmailOnce(
         ? (json as { id: string }).id
         : undefined
 
-    await ctx.runMutation(internal.boardContact.markDeliverySent, {
+    const sentResult: { updated: boolean } = await ctx.runMutation(internal.boardContact.markDeliverySent, {
       resendEmailId,
       submissionId
     })
+    return sentResult.updated ? 'sent' : 'incomplete'
   } catch {
     await ctx.runMutation(internal.boardContact.markDeliveryFailed, {
       error: 'ERR_RESEND_NETWORK',
       submissionId
     })
+    return 'failed'
   }
 }
 

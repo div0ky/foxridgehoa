@@ -401,3 +401,26 @@ test('submitBoardContactMessage throws when Resend returns error', async () => {
     delete process.env.RESEND_FROM
   }
 })
+
+test('markDeliverySent returns updated false when submission was deleted in flight', async () => {
+  const t = convexTest(schema, modules)
+
+  const { submissionId } = await t.mutation(
+    internal.boardContact.createPendingBoardContactSubmission,
+    {
+      message: 'Deleted mid-send',
+      streetAddress: '10 Oak',
+      submitterName: 'Alex'
+    }
+  )
+
+  await t.mutation(internal.boardContact.claimSubmissionForSending, { submissionId })
+  await t.run(async ctx => ctx.db.delete(submissionId))
+
+  const result = await t.mutation(internal.boardContact.markDeliverySent, {
+    resendEmailId: 're_deleted',
+    submissionId
+  })
+
+  expect(result.updated).toBe(false)
+})

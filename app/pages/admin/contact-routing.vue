@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { ConvexClient } from 'convex/browser'
 import type { Id } from '~~/convex/_generated/dataModel'
 
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
 definePageMeta({
@@ -132,32 +133,156 @@ async function submitRouting() {
   }
 }
 
-/** Submissions inbox (paginated) */
+/** Submissions inbox (live-subscribed cursor pages with sealed endCursor ranges) */
 const PAGE_SIZE = 25
-const paginationOpts = ref<{ cursor: null | string, numItems: number }>({
-  cursor: null,
-  numItems: PAGE_SIZE
+const nuxtApp = useNuxtApp()
+const submissionPaginationId = ref(0)
+const firstSubmissionPageEndCursor = ref<null | string>(null)
+
+interface ExtraSubmissionPage {
+  continueCursor: null | string
+  cursor: string
+  endCursor: null | string
+  error: Error | null
+  isDone: boolean
+  items: SubmissionRow[]
+  pending: boolean
+  unsubscribe: (() => void) | null
+}
+
+const extraSubmissionPages = shallowRef<ExtraSubmissionPage[]>([])
+
+function clearExtraSubmissionPages() {
+  for (const page of extraSubmissionPages.value)
+    page.unsubscribe?.()
+  extraSubmissionPages.value = []
+}
+
+onScopeDispose(() => {
+  clearExtraSubmissionPages()
 })
 
 const submissionsState = await useConvexQuery(
   api.boardContact.listBoardContactSubmissions,
   () => isBoardMember.value
-    ? { paginationOpts: paginationOpts.value }
-    : 'skip'
+    ? {
+      paginationOpts: {
+        cursor: null,
+        ...(firstSubmissionPageEndCursor.value !== null
+          ? { endCursor: firstSubmissionPageEndCursor.value }
+          : {}),
+        id: submissionPaginationId.value,
+        numItems: PAGE_SIZE
+      }
+    }
+    : 'skip',
+  { keepPreviousData: true }
 )
 
-const submissionPage = computed(
+function subscribeExtraSubmissionPage(pageIndex: number) {
+  if (!import.meta.client)
+    return
+
+  const convex = nuxtApp.$convex as ConvexClient | undefined
+  const page = extraSubmissionPages.value[pageIndex]
+  if (!convex || !page)
+    return
+
+  page.unsubscribe?.()
+  const activeId = submissionPaginationId.value
+  const unsubscribe = convex.onUpdate(
+    api.boardContact.listBoardContactSubmissions,
+    {
+      paginationOpts: {
+        cursor: page.cursor,
+        ...(page.endCursor !== null ? { endCursor: page.endCursor } : {}),
+        id: activeId,
+        numItems: PAGE_SIZE
+      }
+    },
+    (result) => {
+      if (submissionPaginationId.value !== activeId)
+        return
+      const nextPages = [...extraSubmissionPages.value]
+      const target = nextPages[pageIndex]
+      if (!target)
+        return
+      nextPages[pageIndex] = {
+        ...target,
+        continueCursor: result.data.continueCursor ?? null,
+        error: null,
+        isDone: result.data.isDone,
+        items: result.data.page,
+        pending: false
+      }
+      extraSubmissionPages.value = nextPages
+    },
+    (err) => {
+      if (submissionPaginationId.value !== activeId)
+        return
+      const nextPages = [...extraSubmissionPages.value]
+      const target = nextPages[pageIndex]
+      if (!target)
+        return
+      nextPages[pageIndex] = {
+        ...target,
+        error: err instanceof Error ? err : new Error(String(err)),
+        pending: false
+      }
+      extraSubmissionPages.value = nextPages
+    }
+  )
+
+  const nextPages = [...extraSubmissionPages.value]
+  const target = nextPages[pageIndex]
+  if (target) {
+    nextPages[pageIndex] = { ...target, unsubscribe }
+    extraSubmissionPages.value = nextPages
+  } else {
+    unsubscribe()
+  }
+}
+
+const submissionFirstPage = computed<SubmissionRow[]>(
   () => submissionsState.data.value?.data.page ?? []
 )
-const submissionIsDone = computed(
-  () => submissionsState.data.value?.data.isDone ?? true
+const lastExtraSubmissionPage = computed(() =>
+  extraSubmissionPages.value.length > 0
+    ? extraSubmissionPages.value[extraSubmissionPages.value.length - 1] ?? null
+    : null
 )
-const submissionContinueCursor = computed(
-  () => submissionsState.data.value?.data.continueCursor ?? null
+const submissionIsDone = computed(() =>
+  lastExtraSubmissionPage.value
+    ? lastExtraSubmissionPage.value.isDone
+    : (submissionsState.data.value?.data.isDone ?? true)
+)
+const submissionContinueCursor = computed(() =>
+  lastExtraSubmissionPage.value
+    ? lastExtraSubmissionPage.value.continueCursor
+    : (submissionsState.data.value?.data.continueCursor ?? null)
 )
 
-const accumulatedSubmissions = ref<SubmissionRow[]>([])
-const listInitialized = ref(false)
+const accumulatedSubmissions = computed<SubmissionRow[]>(() => {
+  const merged: SubmissionRow[] = []
+  const seen = new Set<Id<'boardContactSubmissions'>>()
+  for (const row of submissionFirstPage.value) {
+    if (!seen.has(row.submissionId)) {
+      seen.add(row.submissionId)
+      merged.push(row)
+    }
+  }
+  for (const page of extraSubmissionPages.value) {
+    for (const row of page.items) {
+      if (!seen.has(row.submissionId)) {
+        seen.add(row.submissionId)
+        merged.push(row)
+      }
+    }
+  }
+  return merged
+})
+
+const listInitialized = computed(() => Boolean(submissionsState.data.value?.ok))
 const viewedSubmission = ref<SubmissionRow | null>(null)
 const messageModalOpen = ref(false)
 const submissionPendingDeletion = ref<SubmissionRow | null>(null)
@@ -165,58 +290,127 @@ const deleteModalOpen = ref(false)
 const deletingSubmissionId = ref<Id<'boardContactSubmissions'> | null>(null)
 const deleteSubmission = useConvexMutation(api.boardContact.deleteBoardContactSubmission)
 
-watch(
-  () =>
-    ({
-      cursor: paginationOpts.value.cursor,
-      loading: submissionsState.status.value === 'pending',
-      page: submissionPage.value
-    }) as const,
-  ({ cursor, loading, page }) => {
-    if (loading || !submissionsState.data.value?.ok)
-      return
-
-    if (cursor === null) {
-      accumulatedSubmissions.value = page
-      listInitialized.value = true
-    } else {
-      accumulatedSubmissions.value = [...accumulatedSubmissions.value, ...page]
-    }
-  },
-  { deep: true, immediate: true }
-)
-
 watch(isBoardMember, (board) => {
   if (!board) {
-    accumulatedSubmissions.value = []
-    listInitialized.value = false
-    paginationOpts.value = { cursor: null, numItems: PAGE_SIZE }
+    clearExtraSubmissionPages()
+    firstSubmissionPageEndCursor.value = null
+    submissionPaginationId.value += 1
   }
 })
 
 const loadingSubmissions = computed(() => {
   if (!isBoardMember.value)
     return false
-  return submissionsState.status.value === 'pending'
+  return (
+    submissionsState.status.value === 'pending'
+    || extraSubmissionPages.value.some(page => page.pending)
+  )
+})
+
+const extraSubmissionError = computed<Error | null>(() => {
+  for (const page of extraSubmissionPages.value) {
+    if (page.error)
+      return page.error
+  }
+  return null
+})
+
+const submissionsErrorMessage = computed<null | string>(() => {
+  const err = extraSubmissionError.value ?? submissionsState.error.value
+  if (!err)
+    return null
+  return err instanceof Error && err.message.trim().length > 0
+    ? err.message
+    : 'Could not load older submissions. Try again.'
 })
 
 const canLoadMoreSubmissions = computed(
-  () => !submissionIsDone.value && submissionContinueCursor.value !== null
+  () =>
+    !loadingSubmissions.value
+    && !submissionIsDone.value
+    && submissionContinueCursor.value !== null
+    && submissionsErrorMessage.value === null
 )
 
-function loadMoreSubmissions() {
-  if (!submissionContinueCursor.value)
+function isInvalidCursorError(err: Error | null): boolean {
+  if (!err)
+    return false
+  if (err.message.includes('InvalidCursor'))
+    return true
+  const data = (err as { data?: unknown }).data
+  return (
+    typeof data === 'object'
+    && data !== null
+    && 'paginationError' in data
+    && (data as { paginationError?: unknown }).paginationError === 'InvalidCursor'
+  )
+}
+
+function retryFailedSubmissionPages() {
+  const failedIndices = extraSubmissionPages.value
+    .map((page, index) => (page.error ? index : -1))
+    .filter(index => index >= 0)
+
+  const hasInvalidCursor = extraSubmissionPages.value.some(
+    page => isInvalidCursorError(page.error)
+  )
+
+  if (failedIndices.length === 0 || hasInvalidCursor) {
+    refreshSubmissionList()
     return
-  paginationOpts.value = {
-    cursor: submissionContinueCursor.value,
-    numItems: PAGE_SIZE
   }
+
+  const nextPages = [...extraSubmissionPages.value]
+  for (const idx of failedIndices) {
+    const page = nextPages[idx]
+    if (page)
+      nextPages[idx] = { ...page, error: null, pending: true }
+  }
+  extraSubmissionPages.value = nextPages
+
+  for (const idx of failedIndices)
+    subscribeExtraSubmissionPage(idx)
+}
+
+function loadMoreSubmissions() {
+  if (!import.meta.client || !canLoadMoreSubmissions.value || !submissionContinueCursor.value)
+    return
+
+  const nextCursor = submissionContinueCursor.value
+  if (extraSubmissionPages.value.length === 0) {
+    firstSubmissionPageEndCursor.value = nextCursor
+  } else {
+    const previousIndex = extraSubmissionPages.value.length - 1
+    const previousPage = extraSubmissionPages.value[previousIndex]
+    if (previousPage && previousPage.endCursor !== nextCursor) {
+      const nextPages = [...extraSubmissionPages.value]
+      nextPages[previousIndex] = { ...previousPage, endCursor: nextCursor }
+      extraSubmissionPages.value = nextPages
+      subscribeExtraSubmissionPage(previousIndex)
+    }
+  }
+
+  const newIndex = extraSubmissionPages.value.length
+  extraSubmissionPages.value = [
+    ...extraSubmissionPages.value,
+    {
+      continueCursor: null,
+      cursor: nextCursor,
+      endCursor: null,
+      error: null,
+      isDone: false,
+      items: [],
+      pending: true,
+      unsubscribe: null
+    }
+  ]
+  subscribeExtraSubmissionPage(newIndex)
 }
 
 function refreshSubmissionList() {
-  accumulatedSubmissions.value = []
-  listInitialized.value = false
-  paginationOpts.value = { cursor: null, numItems: PAGE_SIZE }
+  clearExtraSubmissionPages()
+  firstSubmissionPageEndCursor.value = null
+  submissionPaginationId.value += 1
 }
 
 function previewMessage(message: string): string {
@@ -242,9 +436,6 @@ async function confirmDeleteSubmission() {
   deletingSubmissionId.value = row.submissionId
   try {
     await deleteSubmission({ submissionId: row.submissionId })
-    accumulatedSubmissions.value = accumulatedSubmissions.value.filter(
-      submission => submission.submissionId !== row.submissionId
-    )
 
     if (viewedSubmission.value?.submissionId === row.submissionId) {
       viewedSubmission.value = null
@@ -446,6 +637,27 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
         >
           Loading submissions…
         </div>
+
+        <UAlert
+          v-else-if="submissionsErrorMessage && accumulatedSubmissions.length === 0"
+          color="error"
+          variant="soft"
+          icon="i-lucide-alert-circle"
+          title="Could not load submissions"
+          :description="submissionsErrorMessage"
+        >
+          <template #actions>
+            <UButton
+              color="error"
+              size="sm"
+              type="button"
+              variant="subtle"
+              @click="retryFailedSubmissionPages"
+            >
+              Try again
+            </UButton>
+          </template>
+        </UAlert>
 
         <div
           v-else-if="accumulatedSubmissions.length === 0"
@@ -649,6 +861,27 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               </tbody>
             </table>
           </div>
+
+          <UAlert
+            v-if="submissionsErrorMessage"
+            color="error"
+            variant="soft"
+            icon="i-lucide-alert-circle"
+            title="Could not load older submissions"
+            :description="submissionsErrorMessage"
+          >
+            <template #actions>
+              <UButton
+                color="error"
+                size="sm"
+                type="button"
+                variant="subtle"
+                @click="retryFailedSubmissionPages"
+              >
+                Try again
+              </UButton>
+            </template>
+          </UAlert>
 
           <UButton
             v-if="canLoadMoreSubmissions"

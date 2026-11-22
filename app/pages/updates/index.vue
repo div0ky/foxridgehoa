@@ -7,25 +7,46 @@ import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttach
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
 import { getCommunityUpdateTimelinePostedAt } from '~/utils/communityUpdateExcerpt'
 
-const {
-  canLoadMore,
-  initialized,
-  isPending,
-  loadMore,
-  refresh,
-  state: communityUpdatesQueryState,
-  updates
-} = await usePaginatedPublicCommunityUpdates(10)
+const runtimeConfig = useRuntimeConfig()
+const canonicalUpdatesUrl = `${runtimeConfig.public.siteUrl.replace(/\/+$/, '')}/updates`
+
+const [
+  {
+    canLoadMore,
+    error: communityUpdatesError,
+    initialized,
+    isPending,
+    loadMore,
+    refresh,
+    state: communityUpdatesQueryState,
+    updates
+  },
+  authState,
+  profileState
+] = await Promise.all([
+  usePaginatedPublicCommunityUpdates(10),
+  useConvexQuery(api.auth.getCurrentUser, {}),
+  useConvexQuery(api.operatorProfiles.getMyOperatorProfile, {})
+])
 
 useSeoMeta({
   description: 'News, reminders, and community updates from the Fox Ridge HOA board.',
   ogDescription: 'News, reminders, and community updates from the Fox Ridge HOA board.',
   ogTitle: 'Community Updates · Fox Ridge HOA',
+  ogType: 'website',
+  ogUrl: canonicalUpdatesUrl,
   title: 'Community Updates · Fox Ridge HOA'
 })
 
-const authState = await useConvexQuery(api.auth.getCurrentUser, {})
-const profileState = await useConvexQuery(api.operatorProfiles.getMyOperatorProfile, {})
+useHead({
+  link: [
+    {
+      href: canonicalUpdatesUrl,
+      rel: 'canonical'
+    }
+  ]
+})
+
 const loadMoreTarget = ref<HTMLElement | null>(null)
 
 const convexUser = computed(() => authState.data.value?.user ?? null)
@@ -36,11 +57,12 @@ const authLoading = computed(() => authState.status.value === 'pending' || profi
 const communityUpdatesFailed = computed(
   () =>
     communityUpdatesQueryState.status.value === 'error'
+    || communityUpdatesError.value !== null
 )
 const communityUpdatesErrorMessage = computed(() => {
   if (!communityUpdatesFailed.value)
     return null
-  const err = communityUpdatesQueryState.error.value
+  const err = communityUpdatesError.value ?? communityUpdatesQueryState.error.value
   if (err instanceof Error && err.message.trim().length > 0)
     return err.message
 
@@ -192,7 +214,7 @@ function isoDateTime(ms: number): string {
 
       <div
         v-else-if="!initialized && isPending"
-        class="mx-auto max-w-3xl text-center text-sm text-slate-500"
+        class="mx-auto max-w-3xl text-center text-sm text-slate-600 dark:text-slate-400"
         role="status"
       >
         Loading updates…

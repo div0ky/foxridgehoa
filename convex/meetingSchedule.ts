@@ -10,7 +10,7 @@ const BOARD_MEETING_COUNT = 4
 const HOA_TIME_ZONE = 'America/Chicago'
 
 function assertAllowedScheduleYear(year: number): void {
-  const thisYear = new Date().getFullYear()
+  const thisYear = yearInHoaTimeZone(Date.now())
   if (year < thisYear - 1 || year > thisYear + 2) {
     throw new ConvexError('Year is out of the allowed range.')
   }

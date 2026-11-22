@@ -28,6 +28,9 @@
   --text-display-sm: 2rem;
   --text-label-lg: 0.875rem;
   --text-label-md: 0.75rem;
+
+  --shadow-soft: 0 4px 20px -4px rgb(0 0 0 / 0.08), 0 1px 4px -1px rgb(0 0 0 / 0.04);
+  --shadow-soft-lg: 0 10px 40px -10px rgb(0 0 0 / 0.1), 0 2px 10px -2px rgb(0 0 0 / 0.04);
 }
 
 @layer base {
@@ -184,7 +187,7 @@
   }
 
   .card-interactive {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
+    @apply transition-[translate,box-shadow] duration-300 motion-safe:hover:-translate-y-1 hover:shadow-xl;
   }
 }
 
@@ -203,6 +206,10 @@
 
   .bg-surface-overlay {
     background-color: rgb(var(--surface-overlay) / 1);
+  }
+
+  .ring-surface-dim {
+    --tw-ring-color: rgb(var(--surface-dim) / 1);
   }
 
   .from-surface-dim {
@@ -243,12 +250,6 @@
     font-family: var(--font-display);
   }
 
-  .shadow-soft-lg {
-    box-shadow:
-      0 10px 40px -10px rgb(0 0 0 / 0.1),
-      0 2px 10px -2px rgb(0 0 0 / 0.04);
-  }
-
   .animate-fade-in {
     animation: fadeIn 0.6s ease-out forwards;
   }
@@ -263,6 +264,17 @@
   .stagger-4 { animation-delay: 0.4s; }
   .stagger-5 { animation-delay: 0.5s; }
   .stagger-6 { animation-delay: 0.6s; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-fade-in,
+  .animate-slide-up {
+    animation: none;
+  }
 }
 
 @keyframes fadeIn {

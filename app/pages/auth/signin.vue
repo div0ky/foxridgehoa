@@ -5,6 +5,16 @@ definePageMeta({
   layout: 'default'
 })
 
+useHead({
+  meta: [
+    {
+      content: 'noindex, nofollow',
+      name: 'robots'
+    }
+  ],
+  title: 'Admin Sign In · Fox Ridge HOA'
+})
+
 const route = useRoute()
 
 const { isAuthenticated, isPending, refreshAuth, signIn } = useConvexAuth()
@@ -16,16 +26,18 @@ const isSubmitting = ref(false)
 
 const defaultAfterLogin = '/admin'
 
-onMounted(async () => {
-  if (import.meta.server) {
-    return
-  }
-  await nextTick()
-  if (isAuthenticated.value && !isPending.value) {
-    const target = safeInternalPath(route.query.redirect, defaultAfterLogin)
-    await navigateTo(target)
-  }
-})
+if (import.meta.client) {
+  watch(
+    [isAuthenticated, isPending],
+    async ([authed, pending]) => {
+      if (authed && !pending) {
+        const target = safeInternalPath(route.query.redirect, defaultAfterLogin)
+        await navigateTo(target, { replace: true })
+      }
+    },
+    { immediate: true }
+  )
+}
 
 async function onSubmit() {
   formError.value = null
@@ -108,13 +120,15 @@ async function onSubmit() {
           {{ formError }}
         </p>
 
-        <button
-          type="submit"
-          class="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-500/25 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+        <M3Button
+          variant="primary"
+          size="md"
+          button-type="submit"
+          class="w-full"
           :disabled="isSubmitting"
         >
           {{ isSubmitting ? 'Signing in…' : 'Sign in' }}
-        </button>
+        </M3Button>
       </form>
     </M3Card>
   </div>

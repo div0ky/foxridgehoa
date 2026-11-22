@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Id } from '~~/convex/_generated/dataModel'
-
 import { ConvexHttpClient } from 'convex/browser'
 import { computed } from 'vue'
 import { api } from '~~/convex/_generated/api'
@@ -18,10 +16,10 @@ import {
 const route = useRoute()
 const runtimeConfig = useRuntimeConfig()
 
-const updateId = computed(() => route.params.id as Id<'communityUpdates'>)
+const updateId = computed(() => String(route.params.id ?? ''))
 
-const { data: queryResult, error } = await useAsyncData(
-  () => `community-update-${route.params.id}`,
+const { data: queryResult, error, status } = await useAsyncData(
+  () => `community-update-${updateId.value}`,
   async () => {
     if (!runtimeConfig.public.convexUrl) {
       throw createError({
@@ -46,7 +44,7 @@ const { data: queryResult, error } = await useAsyncData(
 )
 
 const update = computed(() => queryResult.value?.data.update ?? null)
-const pending = computed(() => !queryResult.value && !error.value)
+const pending = computed(() => status.value === 'pending')
 const toast = useToast()
 
 if (error.value)
@@ -276,8 +274,8 @@ defineOgImage('CommunityUpdate', {
 
             <footer class="border-slate-200/80 border-t px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5 dark:border-slate-800">
               <time
-                :datetime="String(update.postedAt)"
-                class="block text-sm text-slate-500 dark:text-slate-400"
+                :datetime="articlePublishedTime"
+                class="block text-sm text-slate-600 dark:text-slate-400"
                 :aria-label="`Posted ${formattedPostedAt}`"
               >
                 {{ formattedPostedAt }}

@@ -10,17 +10,29 @@ definePageMeta({
 
 defineOptions({ name: 'ContactTheBoardPage' })
 
+const runtimeConfig = useRuntimeConfig()
+const canonicalContactUrl = `${runtimeConfig.public.siteUrl.replace(/\/+$/, '')}/contact-the-board`
+
+useSeoMeta({
+  description: 'Send a message to the Fox Ridge HOA board. Include your name and street address.',
+  ogDescription: 'Send a message to the Fox Ridge HOA board. Include your name and street address.',
+  ogTitle: 'Contact the Board · Fox Ridge HOA',
+  ogType: 'website',
+  ogUrl: canonicalContactUrl,
+  title: 'Contact the Board · Fox Ridge HOA'
+})
+
 useHead({
-  meta: [
+  link: [
     {
-      content: 'Send a message to the Fox Ridge HOA board. Include your name and street address.',
-      name: 'description'
+      href: canonicalContactUrl,
+      rel: 'canonical'
     }
-  ],
-  title: 'Contact the Board — Fox Ridge HOA'
+  ]
 })
 
 const {
+  fieldErrors,
   isSubmitting,
   message,
   statusAnnouncement,
@@ -76,6 +88,7 @@ const {
             <UFormField
               label="Your name"
               name="contact-name"
+              :error="fieldErrors.submitterName"
               required
             >
               <UInput
@@ -92,6 +105,7 @@ const {
             <UFormField
               label="Street address"
               name="contact-street"
+              :error="fieldErrors.streetAddress"
               required
               description="e.g. 123 Rifle Ridge or 456 Fox Creek"
             >
@@ -109,6 +123,7 @@ const {
             <UFormField
               label="Message"
               name="contact-message"
+              :error="fieldErrors.message"
               required
             >
               <UTextarea
