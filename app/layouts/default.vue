@@ -322,6 +322,7 @@ watch(
                   class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
                 >
                   Pay HOA Login
+                  <span class="sr-only"> (opens in a new tab)</span>
                 </a>
               </li>
               <li>
@@ -332,6 +333,7 @@ watch(
                   class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
                 >
                   Closing / Resale Documents
+                  <span class="sr-only"> (opens in a new tab)</span>
                 </a>
               </li>
               <li>

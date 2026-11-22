@@ -181,7 +181,7 @@ if (import.meta.client) {
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-chevron-left"
-                class="text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15"
+                class="text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 aria-label="Previous image"
                 @click="showPreviousImage"
               />
@@ -192,7 +192,7 @@ if (import.meta.client) {
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-chevron-right"
-                class="text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15"
+                class="text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 aria-label="Next image"
                 @click="showNextImage"
               />
@@ -201,7 +201,7 @@ if (import.meta.client) {
               color="neutral"
               variant="ghost"
               icon="i-lucide-x"
-              class="shrink-0 text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15"
+              class="shrink-0 text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
               aria-label="Close enlarged image"
               @click="close"
             />
