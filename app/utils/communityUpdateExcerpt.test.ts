@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   communityUpdatePlainText,
+  formatCommunityUpdateIsoDateTime,
   getCommunityUpdateCanonicalUrl,
   getCommunityUpdateDetailPostedAt,
   getCommunityUpdatePostedAtLabel,
@@ -96,5 +97,15 @@ Please review [the agenda](https://example.com) before **Thursday**.
     expect(getCommunityUpdatePostedAtLabel({ postedAt })).toBe('Dec 31, 2025')
     expect(getCommunityUpdateDetailPostedAt({ postedAt })).toBe('8:30 PM · Dec 31, 2025')
     expect(getCommunityUpdateTimelinePostedAt({ postedAt })).toBe('December 31, 2025 at 8:30 PM')
+    expect(formatCommunityUpdateIsoDateTime(postedAt)).toBe('2026-01-01T02:30:00.000Z')
+  })
+
+  test('guards out-of-range timestamps instead of throwing RangeError', () => {
+    for (const invalid of [1e20, -1e20, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(formatCommunityUpdateIsoDateTime(invalid)).toBeUndefined()
+      expect(getCommunityUpdatePostedAtLabel({ postedAt: invalid })).toBe('')
+      expect(getCommunityUpdateDetailPostedAt({ postedAt: invalid })).toBe('')
+      expect(getCommunityUpdateTimelinePostedAt({ postedAt: invalid })).toBe('')
+    }
   })
 })

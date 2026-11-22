@@ -110,6 +110,11 @@ async function sendInviteEmail(args: {
   signInUrl: string
   temporaryPassword: string
 }): Promise<boolean> {
+  const timeoutSignal
+    = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(15_000)
+      : undefined
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       body: JSON.stringify({
@@ -123,7 +128,7 @@ async function sendInviteEmail(args: {
         'Content-Type': 'application/json'
       },
       method: 'POST',
-      signal: AbortSignal.timeout(15_000)
+      ...(timeoutSignal ? { signal: timeoutSignal } : {})
     })
 
     return res.ok

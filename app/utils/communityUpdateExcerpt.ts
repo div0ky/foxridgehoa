@@ -98,10 +98,25 @@ export function getCommunityUpdateCanonicalUrl(
   return `${siteUrl.replace(/\/+$/, '')}/updates/${updateId}`
 }
 
+function toValidDate(ms: number): Date | null {
+  if (!Number.isFinite(ms))
+    return null
+  const date = new Date(ms)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function formatCommunityUpdateIsoDateTime(ms: number): string | undefined {
+  return toValidDate(ms)?.toISOString()
+}
+
 export function getCommunityUpdatePostedAtLabel(
   { postedAt }: { postedAt: number }
 ): string {
-  return new Date(postedAt).toLocaleDateString('en-US', {
+  const date = toValidDate(postedAt)
+  if (!date)
+    return ''
+
+  return date.toLocaleDateString('en-US', {
     day: 'numeric',
     month: 'short',
     timeZone: COMMUNITY_UPDATE_TIME_ZONE,
@@ -112,7 +127,10 @@ export function getCommunityUpdatePostedAtLabel(
 export function getCommunityUpdateDetailPostedAt(
   { postedAt }: { postedAt: number }
 ): string {
-  const postDate = new Date(postedAt)
+  const postDate = toValidDate(postedAt)
+  if (!postDate)
+    return ''
+
   const time = postDate.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -131,7 +149,11 @@ export function getCommunityUpdateDetailPostedAt(
 export function getCommunityUpdateTimelinePostedAt(
   { postedAt }: { postedAt: number }
 ): string {
-  return new Date(postedAt).toLocaleDateString('en-US', {
+  const date = toValidDate(postedAt)
+  if (!date)
+    return ''
+
+  return date.toLocaleDateString('en-US', {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',

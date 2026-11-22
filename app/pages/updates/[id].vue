@@ -6,6 +6,7 @@ import { api } from '~~/convex/_generated/api'
 import CommunityUpdateAttachmentGallery from '~/components/CommunityUpdateAttachmentGallery.vue'
 import CommunityUpdateMarkdown from '~/components/CommunityUpdateMarkdown.vue'
 import {
+  formatCommunityUpdateIsoDateTime,
   getCommunityUpdateCanonicalUrl,
   getCommunityUpdateDetailPostedAt,
   getCommunityUpdatePostedAtLabel,
@@ -93,7 +94,7 @@ const articlePublishedTime = computed(() => {
   if (!update.value)
     return ''
 
-  return new Date(update.value.postedAt).toISOString()
+  return formatCommunityUpdateIsoDateTime(update.value.postedAt) ?? ''
 })
 
 const formattedPostedAt = computed(() => {
@@ -274,7 +275,7 @@ defineOgImage('CommunityUpdate', {
 
             <footer class="border-slate-200/80 border-t px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5 dark:border-slate-800">
               <time
-                :datetime="articlePublishedTime"
+                :datetime="articlePublishedTime || undefined"
                 class="block text-sm text-slate-600 dark:text-slate-400"
                 :aria-label="`Posted ${formattedPostedAt}`"
               >

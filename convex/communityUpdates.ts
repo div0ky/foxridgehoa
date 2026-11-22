@@ -64,6 +64,11 @@ function assertUniqueStorageIds(storageIds: Id<'_storage'>[]): void {
     throw new ConvexError('The same image cannot be attached more than once.')
 }
 
+function assertValidPostedAt(postedAt: number): void {
+  if (!Number.isFinite(postedAt) || Number.isNaN(new Date(postedAt).getTime()))
+    throw new ConvexError('Post date and time is invalid.')
+}
+
 async function imageUrlsForDoc(
   ctx: StorageCtx,
   images: Doc<'communityUpdates'>['images']
@@ -138,6 +143,8 @@ export const paginateCommunityUpdatesPublic = query({
       data: {
         continueCursor: result.continueCursor,
         isDone: result.isDone,
+        pageStatus: result.pageStatus ?? null,
+        splitCursor: result.splitCursor ?? null,
         updates
       },
       ok: true as const
@@ -237,8 +244,7 @@ export const createCommunityUpdate = mutation({
     if (trimmed.length > MAX_BODY_MARKDOWN_CHARS)
       throw new ConvexError(`Update is too long (${MAX_BODY_MARKDOWN_CHARS} characters max).`)
 
-    if (!Number.isFinite(args.postedAt))
-      throw new ConvexError('Post date and time is invalid.')
+    assertValidPostedAt(args.postedAt)
 
     const storageIds = args.imageStorageIds ?? []
     if (storageIds.length > MAX_IMAGES_PER_UPDATE)
@@ -306,8 +312,7 @@ export const updateCommunityUpdate = mutation({
     if (trimmed.length > MAX_BODY_MARKDOWN_CHARS)
       throw new ConvexError(`Update is too long (${MAX_BODY_MARKDOWN_CHARS} characters max).`)
 
-    if (!Number.isFinite(args.postedAt))
-      throw new ConvexError('Post date and time is invalid.')
+    assertValidPostedAt(args.postedAt)
 
     const storageIds = args.imageStorageIds ?? []
     if (storageIds.length > MAX_IMAGES_PER_UPDATE)

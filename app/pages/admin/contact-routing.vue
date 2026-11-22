@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { ConvexClient } from 'convex/browser'
 import type { Id } from '~~/convex/_generated/dataModel'
 
-import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
 definePageMeta({
@@ -134,155 +133,44 @@ async function submitRouting() {
 }
 
 /** Submissions inbox (live-subscribed cursor pages with sealed endCursor ranges) */
-const PAGE_SIZE = 25
-const nuxtApp = useNuxtApp()
-const submissionPaginationId = ref(0)
-const firstSubmissionPageEndCursor = ref<null | string>(null)
-
-interface ExtraSubmissionPage {
-  continueCursor: null | string
-  cursor: string
-  endCursor: null | string
-  error: Error | null
-  isDone: boolean
-  items: SubmissionRow[]
-  pending: boolean
-  unsubscribe: (() => void) | null
+interface PaginatedSubmissionsResponse {
+  data: {
+    continueCursor: null | string
+    isDone: boolean
+    page: SubmissionRow[]
+    pageStatus?: 'SplitRecommended' | 'SplitRequired' | null
+    splitCursor?: null | string
+  }
+  ok: true
 }
 
-const extraSubmissionPages = shallowRef<ExtraSubmissionPage[]>([])
-
-function clearExtraSubmissionPages() {
-  for (const page of extraSubmissionPages.value)
-    page.unsubscribe?.()
-  extraSubmissionPages.value = []
-}
-
-onScopeDispose(() => {
-  clearExtraSubmissionPages()
+const {
+  canLoadMore: canLoadMoreSubmissions,
+  error: submissionsError,
+  initialized: listInitialized,
+  isPending: loadingSubmissions,
+  items: accumulatedSubmissions,
+  loadMore: loadMoreSubmissions,
+  refresh: refreshSubmissionList,
+  retryFailedPages: retryFailedSubmissionPages
+} = await useLiveConvexPagination<PaginatedSubmissionsResponse, SubmissionRow, Id<'boardContactSubmissions'>>({
+  enabled: isBoardMember,
+  extractPage: (raw) => {
+    if (!raw?.ok)
+      return null
+    return {
+      continueCursor: raw.data.continueCursor ?? null,
+      isDone: raw.data.isDone,
+      items: raw.data.page,
+      pageStatus: raw.data.pageStatus,
+      splitCursor: raw.data.splitCursor
+    }
+  },
+  getItemId: row => row.submissionId,
+  pageSize: 25,
+  query: api.boardContact.listBoardContactSubmissions
 })
 
-const submissionsState = await useConvexQuery(
-  api.boardContact.listBoardContactSubmissions,
-  () => isBoardMember.value
-    ? {
-      paginationOpts: {
-        cursor: null,
-        ...(firstSubmissionPageEndCursor.value !== null
-          ? { endCursor: firstSubmissionPageEndCursor.value }
-          : {}),
-        id: submissionPaginationId.value,
-        numItems: PAGE_SIZE
-      }
-    }
-    : 'skip',
-  { keepPreviousData: true }
-)
-
-function subscribeExtraSubmissionPage(pageIndex: number) {
-  if (!import.meta.client)
-    return
-
-  const convex = nuxtApp.$convex as ConvexClient | undefined
-  const page = extraSubmissionPages.value[pageIndex]
-  if (!convex || !page)
-    return
-
-  page.unsubscribe?.()
-  const activeId = submissionPaginationId.value
-  const unsubscribe = convex.onUpdate(
-    api.boardContact.listBoardContactSubmissions,
-    {
-      paginationOpts: {
-        cursor: page.cursor,
-        ...(page.endCursor !== null ? { endCursor: page.endCursor } : {}),
-        id: activeId,
-        numItems: PAGE_SIZE
-      }
-    },
-    (result) => {
-      if (submissionPaginationId.value !== activeId)
-        return
-      const nextPages = [...extraSubmissionPages.value]
-      const target = nextPages[pageIndex]
-      if (!target)
-        return
-      nextPages[pageIndex] = {
-        ...target,
-        continueCursor: result.data.continueCursor ?? null,
-        error: null,
-        isDone: result.data.isDone,
-        items: result.data.page,
-        pending: false
-      }
-      extraSubmissionPages.value = nextPages
-    },
-    (err) => {
-      if (submissionPaginationId.value !== activeId)
-        return
-      const nextPages = [...extraSubmissionPages.value]
-      const target = nextPages[pageIndex]
-      if (!target)
-        return
-      nextPages[pageIndex] = {
-        ...target,
-        error: err instanceof Error ? err : new Error(String(err)),
-        pending: false
-      }
-      extraSubmissionPages.value = nextPages
-    }
-  )
-
-  const nextPages = [...extraSubmissionPages.value]
-  const target = nextPages[pageIndex]
-  if (target) {
-    nextPages[pageIndex] = { ...target, unsubscribe }
-    extraSubmissionPages.value = nextPages
-  } else {
-    unsubscribe()
-  }
-}
-
-const submissionFirstPage = computed<SubmissionRow[]>(
-  () => submissionsState.data.value?.data.page ?? []
-)
-const lastExtraSubmissionPage = computed(() =>
-  extraSubmissionPages.value.length > 0
-    ? extraSubmissionPages.value[extraSubmissionPages.value.length - 1] ?? null
-    : null
-)
-const submissionIsDone = computed(() =>
-  lastExtraSubmissionPage.value
-    ? lastExtraSubmissionPage.value.isDone
-    : (submissionsState.data.value?.data.isDone ?? true)
-)
-const submissionContinueCursor = computed(() =>
-  lastExtraSubmissionPage.value
-    ? lastExtraSubmissionPage.value.continueCursor
-    : (submissionsState.data.value?.data.continueCursor ?? null)
-)
-
-const accumulatedSubmissions = computed<SubmissionRow[]>(() => {
-  const merged: SubmissionRow[] = []
-  const seen = new Set<Id<'boardContactSubmissions'>>()
-  for (const row of submissionFirstPage.value) {
-    if (!seen.has(row.submissionId)) {
-      seen.add(row.submissionId)
-      merged.push(row)
-    }
-  }
-  for (const page of extraSubmissionPages.value) {
-    for (const row of page.items) {
-      if (!seen.has(row.submissionId)) {
-        seen.add(row.submissionId)
-        merged.push(row)
-      }
-    }
-  }
-  return merged
-})
-
-const listInitialized = computed(() => Boolean(submissionsState.data.value?.ok))
 const viewedSubmission = ref<SubmissionRow | null>(null)
 const messageModalOpen = ref(false)
 const submissionPendingDeletion = ref<SubmissionRow | null>(null)
@@ -290,128 +178,14 @@ const deleteModalOpen = ref(false)
 const deletingSubmissionId = ref<Id<'boardContactSubmissions'> | null>(null)
 const deleteSubmission = useConvexMutation(api.boardContact.deleteBoardContactSubmission)
 
-watch(isBoardMember, (board) => {
-  if (!board) {
-    clearExtraSubmissionPages()
-    firstSubmissionPageEndCursor.value = null
-    submissionPaginationId.value += 1
-  }
-})
-
-const loadingSubmissions = computed(() => {
-  if (!isBoardMember.value)
-    return false
-  return (
-    submissionsState.status.value === 'pending'
-    || extraSubmissionPages.value.some(page => page.pending)
-  )
-})
-
-const extraSubmissionError = computed<Error | null>(() => {
-  for (const page of extraSubmissionPages.value) {
-    if (page.error)
-      return page.error
-  }
-  return null
-})
-
 const submissionsErrorMessage = computed<null | string>(() => {
-  const err = extraSubmissionError.value ?? submissionsState.error.value
+  const err = submissionsError.value
   if (!err)
     return null
   return err instanceof Error && err.message.trim().length > 0
     ? err.message
     : 'Could not load older submissions. Try again.'
 })
-
-const canLoadMoreSubmissions = computed(
-  () =>
-    !loadingSubmissions.value
-    && !submissionIsDone.value
-    && submissionContinueCursor.value !== null
-    && submissionsErrorMessage.value === null
-)
-
-function isInvalidCursorError(err: Error | null): boolean {
-  if (!err)
-    return false
-  if (err.message.includes('InvalidCursor'))
-    return true
-  const data = (err as { data?: unknown }).data
-  return (
-    typeof data === 'object'
-    && data !== null
-    && 'paginationError' in data
-    && (data as { paginationError?: unknown }).paginationError === 'InvalidCursor'
-  )
-}
-
-function retryFailedSubmissionPages() {
-  const failedIndices = extraSubmissionPages.value
-    .map((page, index) => (page.error ? index : -1))
-    .filter(index => index >= 0)
-
-  const hasInvalidCursor = extraSubmissionPages.value.some(
-    page => isInvalidCursorError(page.error)
-  )
-
-  if (failedIndices.length === 0 || hasInvalidCursor) {
-    refreshSubmissionList()
-    return
-  }
-
-  const nextPages = [...extraSubmissionPages.value]
-  for (const idx of failedIndices) {
-    const page = nextPages[idx]
-    if (page)
-      nextPages[idx] = { ...page, error: null, pending: true }
-  }
-  extraSubmissionPages.value = nextPages
-
-  for (const idx of failedIndices)
-    subscribeExtraSubmissionPage(idx)
-}
-
-function loadMoreSubmissions() {
-  if (!import.meta.client || !canLoadMoreSubmissions.value || !submissionContinueCursor.value)
-    return
-
-  const nextCursor = submissionContinueCursor.value
-  if (extraSubmissionPages.value.length === 0) {
-    firstSubmissionPageEndCursor.value = nextCursor
-  } else {
-    const previousIndex = extraSubmissionPages.value.length - 1
-    const previousPage = extraSubmissionPages.value[previousIndex]
-    if (previousPage && previousPage.endCursor !== nextCursor) {
-      const nextPages = [...extraSubmissionPages.value]
-      nextPages[previousIndex] = { ...previousPage, endCursor: nextCursor }
-      extraSubmissionPages.value = nextPages
-      subscribeExtraSubmissionPage(previousIndex)
-    }
-  }
-
-  const newIndex = extraSubmissionPages.value.length
-  extraSubmissionPages.value = [
-    ...extraSubmissionPages.value,
-    {
-      continueCursor: null,
-      cursor: nextCursor,
-      endCursor: null,
-      error: null,
-      isDone: false,
-      items: [],
-      pending: true,
-      unsubscribe: null
-    }
-  ]
-  subscribeExtraSubmissionPage(newIndex)
-}
-
-function refreshSubmissionList() {
-  clearExtraSubmissionPages()
-  firstSubmissionPageEndCursor.value = null
-  submissionPaginationId.value += 1
-}
 
 function previewMessage(message: string): string {
   const compact = message.replace(/\s+/g, ' ').trim()

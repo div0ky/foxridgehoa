@@ -2,7 +2,11 @@
 import { computed } from 'vue'
 
 import { normalizeImportantDocumentIcon } from '~/config/important-document-icons'
-import { communityUpdateHeadline, getCommunityUpdatePostedAtLabel } from '~/utils/communityUpdateExcerpt'
+import {
+  communityUpdateHeadline,
+  formatCommunityUpdateIsoDateTime,
+  getCommunityUpdatePostedAtLabel
+} from '~/utils/communityUpdateExcerpt'
 import { getHoaCurrentMonth } from '~/utils/hoaMeetingDisplay'
 
 const runtimeConfig = useRuntimeConfig()
@@ -56,7 +60,7 @@ const communityUpdateTeasers = computed(() =>
     id: update.id,
     imageUrls: update.imageUrls,
     postedAt: update.postedAt,
-    postedAtIso: new Date(update.postedAt).toISOString(),
+    postedAtIso: formatCommunityUpdateIsoDateTime(update.postedAt),
     postedAtLabel: getCommunityUpdatePostedAtLabel({ postedAt: update.postedAt })
   }))
 )
@@ -508,7 +512,7 @@ function iconForImportantDoc(icon?: string) {
           <h3 class="mb-4 line-clamp-4 break-words text-xl font-semibold leading-snug text-slate-900 dark:text-white">
             <NuxtLink
               :to="`/updates/${update.id}`"
-              class="rounded transition-colors hover:text-primary-600 focus-ring dark:hover:text-primary-400"
+              class="rounded transition-colors hover:text-primary-700 focus-ring dark:hover:text-primary-400"
             >
               {{ update.headline }}
             </NuxtLink>

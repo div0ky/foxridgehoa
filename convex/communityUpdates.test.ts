@@ -68,6 +68,8 @@ test('paginateCommunityUpdatesPublic returns older pages by posted time', async 
     'Update 20'
   ])
   expect(firstPage.data.isDone).toBe(false)
+  expect(firstPage.data).toHaveProperty('pageStatus')
+  expect(firstPage.data).toHaveProperty('splitCursor')
 
   const secondPage = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
     paginationOpts: {

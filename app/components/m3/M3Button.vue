@@ -44,13 +44,16 @@ const componentType = computed(() => {
   return 'button'
 })
 
+const isExternalHref = computed(() =>
+  Boolean(!props.to && props.href && /^https?:\/\//i.test(props.href))
+)
+
 const componentAttrs = computed(() => {
   if (props.to)
     return { to: props.to }
 
   if (props.href) {
-    const isExternal = /^https?:\/\//i.test(props.href)
-    return isExternal
+    return isExternalHref.value
       ? { href: props.href, rel: 'noopener noreferrer', target: '_blank' }
       : { href: props.href }
   }
@@ -74,6 +77,10 @@ const componentAttrs = computed(() => {
       :class="{ 'h-4 w-4': size === 'sm', 'h-5 w-5': size === 'md' || size === 'lg' }"
     />
     <slot />
+    <span
+      v-if="isExternalHref"
+      class="sr-only"
+    > (opens in a new tab)</span>
     <Icon
       v-if="icon && iconPosition === 'right'"
       :name="icon"

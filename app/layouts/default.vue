@@ -369,7 +369,7 @@ watch(
           <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
             <NuxtLink
               to="/admin"
-              class="text-xs font-medium text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
+              class="text-xs font-medium text-slate-600 transition-colors hover:text-primary-700 dark:text-slate-400 dark:hover:text-primary-400"
             >
               Admin
             </NuxtLink>

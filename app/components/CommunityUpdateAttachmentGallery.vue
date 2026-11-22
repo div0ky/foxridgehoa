@@ -158,6 +158,14 @@ if (import.meta.client) {
         <DialogTitle class="sr-only">
           {{ lightboxAlt }}
         </DialogTitle>
+        <p
+          v-if="lightboxOpen"
+          class="sr-only"
+          aria-live="polite"
+          role="status"
+        >
+          {{ lightboxAlt }}
+        </p>
         <div class="flex min-h-0 flex-1 flex-col bg-slate-950">
           <div
             class="flex shrink-0 items-center gap-3 border-white/10 border-b bg-slate-950 px-4 py-3"
@@ -173,7 +181,7 @@ if (import.meta.client) {
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-chevron-left"
-                class="text-white"
+                class="text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15"
                 aria-label="Previous image"
                 @click="showPreviousImage"
               />
@@ -184,7 +192,7 @@ if (import.meta.client) {
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-chevron-right"
-                class="text-white"
+                class="text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15"
                 aria-label="Next image"
                 @click="showNextImage"
               />
@@ -193,7 +201,7 @@ if (import.meta.client) {
               color="neutral"
               variant="ghost"
               icon="i-lucide-x"
-              class="shrink-0 text-white"
+              class="shrink-0 text-white hover:bg-white/15 active:bg-white/25 focus-visible:bg-white/15"
               aria-label="Close enlarged image"
               @click="close"
             />

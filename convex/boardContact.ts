@@ -297,7 +297,9 @@ export const listBoardContactSubmissions = query({
           streetAddress: doc.streetAddress,
           submissionId: doc._id,
           submitterName: doc.submitterName
-        }))
+        })),
+        pageStatus: result.pageStatus ?? null,
+        splitCursor: result.splitCursor ?? null
       },
       ok: true as const
     }
@@ -479,6 +481,11 @@ async function deliverBoardContactEmailOnce(
   const subject = `Fox Ridge HOA — board contact: ${safeSubjectName(submission.submitterName)}`
   const text = buildPlainTextEmailBody(submission)
 
+  const timeoutSignal
+    = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(15_000)
+      : undefined
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       body: JSON.stringify({
@@ -493,7 +500,7 @@ async function deliverBoardContactEmailOnce(
         'Content-Type': 'application/json'
       },
       method: 'POST',
-      signal: AbortSignal.timeout(15_000)
+      ...(timeoutSignal ? { signal: timeoutSignal } : {})
     })
 
     const json: unknown = await res.json().catch(() => null)
