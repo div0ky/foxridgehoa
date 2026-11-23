@@ -120,7 +120,7 @@ export async function useLiveConvexPagination<
   const ongoingExtraSplits = shallowRef<Map<number, OngoingSplit<TItem>>>(new Map())
   const stagedFirstPageSplit = shallowRef<OngoingSplit<TItem> | null>(null)
   const firstPageOverride = shallowRef<FirstPageOverrideState<TItem> | null>(null)
-  const awaitingFreshFirstPage = shallowRef<{ replacedRawData: unknown } | null>(null)
+  const awaitingFreshFirstPage = shallowRef<{ replacedError: unknown, replacedRawData: unknown } | null>(null)
   const lastCompleteFirstPage = shallowRef<LivePaginationPagePayload<TItem> | null>(null)
   const firstPageSplitError = ref<Error | null>(null)
   const isEnabled = computed(() => (options.enabled === undefined ? true : Boolean(toValue(options.enabled))))
@@ -704,6 +704,10 @@ export async function useLiveConvexPagination<
 
           const override = firstPageOverride.value
           if (override) {
+            if (queryError != null && !requestPending) {
+              clearFirstPageOverride()
+              return
+            }
             // Keep the staged left-half override active until useConvexQuery settles on the narrowed range.
             if (rawData === override.replacedRawData || requestPending)
               return
@@ -712,16 +716,19 @@ export async function useLiveConvexPagination<
 
           const awaitingFresh = awaitingFreshFirstPage.value
           if (awaitingFresh) {
-            if (queryError !== null) {
-              awaitingFreshFirstPage.value = null
-            } else if (!isEnabled.value || requestPending || rawData === awaitingFresh.replacedRawData) {
+            if (!isEnabled.value || requestPending)
               return
-            } else {
-              awaitingFreshFirstPage.value = null
+            if (queryError != null) {
+              if (queryError !== awaitingFresh.replacedError)
+                awaitingFreshFirstPage.value = null
+              return
             }
+            if (rawData === awaitingFresh.replacedRawData)
+              return
+            awaitingFreshFirstPage.value = null
           }
 
-          if (requestPending)
+          if (requestPending || queryError != null)
             return
 
           const payload = rawFirstPagePayload.value
@@ -744,7 +751,10 @@ export async function useLiveConvexPagination<
           return
         if (!enabled) {
           clearExtraPages()
-          awaitingFreshFirstPage.value = { replacedRawData: state.data.value }
+          awaitingFreshFirstPage.value = {
+            replacedError: state.error.value,
+            replacedRawData: state.data.value
+          }
           firstPageEndCursor.value = null
           paginationId.value += 1
         }
@@ -875,8 +885,12 @@ export async function useLiveConvexPagination<
     if (isDisposed)
       return
     clearExtraPages()
-    if (isEnabled.value)
-      awaitingFreshFirstPage.value = { replacedRawData: state.data.value }
+    if (isEnabled.value) {
+      awaitingFreshFirstPage.value = {
+        replacedError: state.error.value,
+        replacedRawData: state.data.value
+      }
+    }
     firstPageEndCursor.value = null
     paginationId.value += 1
   }

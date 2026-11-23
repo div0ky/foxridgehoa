@@ -33,7 +33,7 @@ interface SubscriptionRecord {
 
 function createHarness() {
   const firstPageData = shallowRef<MockPageResponse | null>(null)
-  const firstPageError = ref<Error | null>(null)
+  const firstPageError = ref<Error | null | undefined>(undefined)
   const firstPageIsStale = ref(false)
   const firstPagePending = ref(false)
   const firstPageStatus = ref<'error' | 'pending' | 'success'>('success')
@@ -542,9 +542,17 @@ describe('useLiveConvexPagination', () => {
 
     expect(pagination.canLoadMore.value).toBe(true)
 
+    // Even before pending/isStale flip (and with real Nuxt error=undefined), awaitingFreshFirstPage
+    // must keep canLoadMore blocked and ignore loadMore() on the retained cursor.
+    pagination.refresh()
+    await nextTick()
+    expect(pagination.isPending.value).toBe(true)
+    expect(pagination.canLoadMore.value).toBe(false)
+    pagination.loadMore()
+    expect(harness.subscriptions).toHaveLength(0)
+
     // Under better-convex-nuxt keepPreviousData, status stays 'success' while pending/isStale are true
     // and old data remains retained until the refreshed query responds.
-    pagination.refresh()
     harness.firstPagePending.value = true
     harness.firstPageIsStale.value = true
     await nextTick()
@@ -578,6 +586,53 @@ describe('useLiveConvexPagination', () => {
       cursor: 'fresh-cursor',
       id: 1
     })
+
+    scope.stop()
+  })
+
+  test('does not start stale splits when a refresh fails with retained SplitRecommended data', async () => {
+    const harness = createHarness()
+    harness.firstPageData.value = {
+      data: {
+        continueCursor: 'c4',
+        isDone: false,
+        items: [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }],
+        pageStatus: 'SplitRecommended',
+        splitCursor: 'c2'
+      },
+      ok: true
+    }
+
+    const scope = effectScope()
+    let pagination!: Awaited<ReturnType<typeof useLiveConvexPagination<MockPageResponse, { id: string }>>>
+    await scope.run(async () => {
+      pagination = await useLiveConvexPagination<MockPageResponse, { id: string }>({
+        extractPage: extractMockPage,
+        getItemId: item => item.id,
+        pageSize: 2,
+        query: dummyQuery
+      })
+    })
+
+    // Initial split subscriptions are opened, then refresh cancels them and waits for fresh page 0.
+    expect(harness.subscriptions).toHaveLength(2)
+    pagination.refresh()
+    harness.firstPagePending.value = true
+    harness.firstPageIsStale.value = true
+    await nextTick()
+    expect(harness.subscriptions.every(sub => !sub.active)).toBe(true)
+
+    // Refresh fails while Nuxt retains the previous SplitRecommended data object.
+    harness.firstPagePending.value = false
+    harness.firstPageIsStale.value = false
+    harness.firstPageError.value = new Error('Refresh failed')
+    await nextTick()
+
+    // Error must surface without opening any new split subscriptions on the stale retained page.
+    expect(pagination.isPending.value).toBe(false)
+    expect(pagination.error.value?.message).toBe('Refresh failed')
+    expect(pagination.canLoadMore.value).toBe(false)
+    expect(harness.subscriptions).toHaveLength(2)
 
     scope.stop()
   })
