@@ -34,6 +34,8 @@ interface SubscriptionRecord {
 function createHarness() {
   const firstPageData = shallowRef<MockPageResponse | null>(null)
   const firstPageError = ref<Error | null>(null)
+  const firstPageIsStale = ref(false)
+  const firstPagePending = ref(false)
   const firstPageStatus = ref<'error' | 'pending' | 'success'>('success')
   const firstPageArgsHistory: Array<unknown> = []
   const subscriptions: SubscriptionRecord[] = []
@@ -76,6 +78,8 @@ function createHarness() {
       data: firstPageData,
       error: firstPageError,
       getLatestArgs: argsGetter,
+      isStale: firstPageIsStale,
+      pending: firstPagePending,
       status: firstPageStatus
     }
   })
@@ -84,6 +88,8 @@ function createHarness() {
     firstPageArgsHistory,
     firstPageData,
     firstPageError,
+    firstPageIsStale,
+    firstPagePending,
     firstPageStatus,
     subscriptions
   }
@@ -303,9 +309,10 @@ describe('useLiveConvexPagination', () => {
     })
     expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2b', '3', '4'])
 
-    // Narrowing firstPageEndCursor puts useConvexQuery into pending: UI must not flash isPending,
-    // and loadMore stays guarded until handoff completes.
-    harness.firstPageStatus.value = 'pending'
+    // Narrowing firstPageEndCursor puts useConvexQuery into pending/stale while status remains 'success'
+    // under keepPreviousData: UI must not flash isPending, and loadMore stays guarded until handoff settles.
+    harness.firstPagePending.value = true
+    harness.firstPageIsStale.value = true
     await nextTick()
     expect(pagination.isPending.value).toBe(false)
     expect(pagination.canLoadMore.value).toBe(false)
@@ -320,6 +327,8 @@ describe('useLiveConvexPagination', () => {
       },
       ok: true
     }
+    harness.firstPagePending.value = false
+    harness.firstPageIsStale.value = false
     harness.firstPageStatus.value = 'success'
     await nextTick()
     expect(stagedLeft.active).toBe(false)
@@ -491,6 +500,84 @@ describe('useLiveConvexPagination', () => {
     leftB.emit({ data: { continueCursor: 'c4', isDone: false, items: [{ id: '4' }] }, ok: true })
     expect(page2Sub.active).toBe(false)
     expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
+
+    // Verify raw first-page SplitRequired keeps lastCompleteFirstPage visible while staging halves.
+    harness.firstPageData.value = {
+      data: {
+        continueCursor: 'c1',
+        isDone: false,
+        items: [{ id: '1' }],
+        pageStatus: 'SplitRequired',
+        splitCursor: 'c1'
+      },
+      ok: true
+    }
+    await nextTick()
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2', '3', '4', '5', '6'])
+
+    scope.stop()
+  })
+
+  test('blocks loadMore and stale splits after refresh until fresh first-page data settles', async () => {
+    const harness = createHarness()
+    harness.firstPageData.value = {
+      data: {
+        continueCursor: 'stale-cursor',
+        isDone: false,
+        items: [{ id: '1' }, { id: '2' }]
+      },
+      ok: true
+    }
+
+    const scope = effectScope()
+    let pagination!: Awaited<ReturnType<typeof useLiveConvexPagination<MockPageResponse, { id: string }>>>
+    await scope.run(async () => {
+      pagination = await useLiveConvexPagination<MockPageResponse, { id: string }>({
+        extractPage: extractMockPage,
+        getItemId: item => item.id,
+        pageSize: 2,
+        query: dummyQuery
+      })
+    })
+
+    expect(pagination.canLoadMore.value).toBe(true)
+
+    // Under better-convex-nuxt keepPreviousData, status stays 'success' while pending/isStale are true
+    // and old data remains retained until the refreshed query responds.
+    pagination.refresh()
+    harness.firstPagePending.value = true
+    harness.firstPageIsStale.value = true
+    await nextTick()
+
+    expect(pagination.isPending.value).toBe(true)
+    expect(pagination.canLoadMore.value).toBe(false)
+
+    // Calling loadMore during refresh must be a no-op and never open a subscription with stale-cursor.
+    pagination.loadMore()
+    expect(harness.subscriptions).toHaveLength(0)
+
+    // Once fresh first-page data settles, canLoadMore re-enables and uses the new cursor.
+    harness.firstPageData.value = {
+      data: {
+        continueCursor: 'fresh-cursor',
+        isDone: false,
+        items: [{ id: '10' }, { id: '11' }]
+      },
+      ok: true
+    }
+    harness.firstPagePending.value = false
+    harness.firstPageIsStale.value = false
+    await nextTick()
+
+    expect(pagination.isPending.value).toBe(false)
+    expect(pagination.canLoadMore.value).toBe(true)
+
+    pagination.loadMore()
+    expect(harness.subscriptions).toHaveLength(1)
+    expect(harness.subscriptions[0]?.paginationOpts).toMatchObject({
+      cursor: 'fresh-cursor',
+      id: 1
+    })
 
     scope.stop()
   })

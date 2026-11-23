@@ -120,6 +120,7 @@ export async function useLiveConvexPagination<
   const ongoingExtraSplits = shallowRef<Map<number, OngoingSplit<TItem>>>(new Map())
   const stagedFirstPageSplit = shallowRef<OngoingSplit<TItem> | null>(null)
   const firstPageOverride = shallowRef<FirstPageOverrideState<TItem> | null>(null)
+  const awaitingFreshFirstPage = shallowRef<{ replacedRawData: unknown } | null>(null)
   const lastCompleteFirstPage = shallowRef<LivePaginationPagePayload<TItem> | null>(null)
   const firstPageSplitError = ref<Error | null>(null)
   const isEnabled = computed(() => (options.enabled === undefined ? true : Boolean(toValue(options.enabled))))
@@ -545,8 +546,10 @@ export async function useLiveConvexPagination<
     }
 
     const [firstSegment, ...tailSegments] = staged.segments
-    if (!firstSegment || !firstSegment.payload || firstSegment.endCursor === null)
+    if (!firstSegment || !firstSegment.payload || firstSegment.endCursor === null) {
+      clearStagedFirstPageSplit()
       return
+    }
 
     staged.committed = true
     stagedFirstPageSplit.value = null
@@ -654,6 +657,12 @@ export async function useLiveConvexPagination<
       subscribeStagedSegment({ ...commonArgs, segment: rightSegment })
   }
 
+  const isFirstPageRequestPending = computed(() =>
+    state.status.value === 'pending'
+    || Boolean(state.pending?.value)
+    || Boolean(state.isStale?.value)
+  )
+
   const rawFirstPagePayload = computed(() =>
     options.extractPage(state.data.value as TRawResult | null)
   )
@@ -684,18 +693,36 @@ export async function useLiveConvexPagination<
   if (!isDisposed) {
     registerScopedWatch(() =>
       watch(
-        [() => state.data.value, () => state.status.value],
-        ([rawData, status]) => {
+        [
+          () => state.data.value,
+          () => state.error.value,
+          () => isFirstPageRequestPending.value
+        ],
+        ([rawData, queryError, requestPending]) => {
           if (isDisposed)
             return
 
           const override = firstPageOverride.value
           if (override) {
             // Keep the staged left-half override active until useConvexQuery settles on the narrowed range.
-            if (rawData === override.replacedRawData || status === 'pending')
+            if (rawData === override.replacedRawData || requestPending)
               return
             clearFirstPageOverride()
           }
+
+          const awaitingFresh = awaitingFreshFirstPage.value
+          if (awaitingFresh) {
+            if (queryError !== null) {
+              awaitingFreshFirstPage.value = null
+            } else if (!isEnabled.value || requestPending || rawData === awaitingFresh.replacedRawData) {
+              return
+            } else {
+              awaitingFreshFirstPage.value = null
+            }
+          }
+
+          if (requestPending)
+            return
 
           const payload = rawFirstPagePayload.value
           if (!payload)
@@ -717,6 +744,7 @@ export async function useLiveConvexPagination<
           return
         if (!enabled) {
           clearExtraPages()
+          awaitingFreshFirstPage.value = { replacedRawData: state.data.value }
           firstPageEndCursor.value = null
           paginationId.value += 1
         }
@@ -790,7 +818,8 @@ export async function useLiveConvexPagination<
   const isPending = computed(() => {
     if (!isEnabled.value)
       return false
-    const firstPagePending = state.status.value === 'pending' && firstPageOverride.value === null
+    const firstPagePending = (isFirstPageRequestPending.value || awaitingFreshFirstPage.value !== null)
+      && firstPageOverride.value === null
     return firstPagePending || extraPages.value.some(page => page.pending)
   })
 
@@ -799,6 +828,8 @@ export async function useLiveConvexPagination<
       isEnabled.value
       && !isPending.value
       && !isTransitioningSplit.value
+      && awaitingFreshFirstPage.value === null
+      && !isFirstPageRequestPending.value
       && !isDone.value
       && continueCursor.value !== null
       && error.value === null
@@ -844,6 +875,8 @@ export async function useLiveConvexPagination<
     if (isDisposed)
       return
     clearExtraPages()
+    if (isEnabled.value)
+      awaitingFreshFirstPage.value = { replacedRawData: state.data.value }
     firstPageEndCursor.value = null
     paginationId.value += 1
   }
