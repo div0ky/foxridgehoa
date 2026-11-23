@@ -5,8 +5,7 @@ import { paginationOptsValidator } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
-import { authComponent } from './auth'
-import { requireBoardMember } from './authz/requireBoardMember'
+import { requireBoardMember, requireBoardMemberWithUser } from './authz/requireBoardMember'
 
 const MAX_BODY_MARKDOWN_CHARS = 32_000
 const MAX_AUTHOR_NAME_CHARS = 160
@@ -63,6 +62,11 @@ function normalizeRequestedCount(value: number | undefined, fallback: number, ma
 function assertUniqueStorageIds(storageIds: Id<'_storage'>[]): void {
   if (new Set(storageIds).size !== storageIds.length)
     throw new ConvexError('The same image cannot be attached more than once.')
+}
+
+function assertValidPostedAt(postedAt: number): void {
+  if (!Number.isFinite(postedAt) || Number.isNaN(new Date(postedAt).getTime()))
+    throw new ConvexError('Post date and time is invalid.')
 }
 
 async function imageUrlsForDoc(
@@ -139,6 +143,8 @@ export const paginateCommunityUpdatesPublic = query({
       data: {
         continueCursor: result.continueCursor,
         isDone: result.isDone,
+        pageStatus: result.pageStatus ?? null,
+        splitCursor: result.splitCursor ?? null,
         updates
       },
       ok: true as const
@@ -148,10 +154,18 @@ export const paginateCommunityUpdatesPublic = query({
 
 export const getCommunityUpdatePublic = query({
   args: {
-    updateId: v.id('communityUpdates')
+    updateId: v.string()
   },
   handler: async (ctx, args) => {
-    const doc = await ctx.db.get(args.updateId)
+    const normalizedId = ctx.db.normalizeId('communityUpdates', args.updateId)
+    if (!normalizedId) {
+      return {
+        data: { update: null },
+        ok: true as const
+      }
+    }
+
+    const doc = await ctx.db.get(normalizedId)
     if (!doc) {
       return {
         data: { update: null },
@@ -215,11 +229,7 @@ export const createCommunityUpdate = mutation({
     postedAt: v.number()
   },
   handler: async (ctx, args) => {
-    await requireBoardMember(ctx)
-
-    const user = await authComponent.safeGetAuthUser(ctx)
-    if (!user || typeof user._id !== 'string')
-      throw new ConvexError('Unauthenticated.')
+    const { user } = await requireBoardMemberWithUser(ctx)
 
     const rawName = typeof user.name === 'string' ? user.name.trim() : ''
     if (!rawName)
@@ -234,16 +244,14 @@ export const createCommunityUpdate = mutation({
     if (trimmed.length > MAX_BODY_MARKDOWN_CHARS)
       throw new ConvexError(`Update is too long (${MAX_BODY_MARKDOWN_CHARS} characters max).`)
 
-    if (!Number.isFinite(args.postedAt))
-      throw new ConvexError('Post date and time is invalid.')
+    assertValidPostedAt(args.postedAt)
 
     const storageIds = args.imageStorageIds ?? []
     if (storageIds.length > MAX_IMAGES_PER_UPDATE)
       throw new ConvexError(`At most ${MAX_IMAGES_PER_UPDATE} images per update.`)
     assertUniqueStorageIds(storageIds)
 
-    for (const storageId of storageIds)
-      await assertImageBlob(ctx, storageId)
+    await Promise.all(storageIds.map(storageId => assertImageBlob(ctx, storageId)))
 
     const now = Date.now()
 
@@ -275,8 +283,7 @@ export const deleteCommunityUpdate = mutation({
     if (!doc)
       throw new ConvexError('Update not found.')
 
-    for (const { storageId } of doc.images)
-      await ctx.storage.delete(storageId)
+    await Promise.all(doc.images.map(({ storageId }) => ctx.storage.delete(storageId)))
 
     await ctx.db.delete(args.updateId)
 
@@ -305,23 +312,20 @@ export const updateCommunityUpdate = mutation({
     if (trimmed.length > MAX_BODY_MARKDOWN_CHARS)
       throw new ConvexError(`Update is too long (${MAX_BODY_MARKDOWN_CHARS} characters max).`)
 
-    if (!Number.isFinite(args.postedAt))
-      throw new ConvexError('Post date and time is invalid.')
+    assertValidPostedAt(args.postedAt)
 
     const storageIds = args.imageStorageIds ?? []
     if (storageIds.length > MAX_IMAGES_PER_UPDATE)
       throw new ConvexError(`At most ${MAX_IMAGES_PER_UPDATE} images per update.`)
     assertUniqueStorageIds(storageIds)
 
-    for (const storageId of storageIds)
-      await assertImageBlob(ctx, storageId)
+    await Promise.all(storageIds.map(storageId => assertImageBlob(ctx, storageId)))
 
-    // Clean up images that are no longer referenced
     const newStorageIds = new Set(storageIds)
-    for (const { storageId } of doc.images) {
-      if (!newStorageIds.has(storageId))
-        await ctx.storage.delete(storageId)
-    }
+    const removedStorageIds = doc.images
+      .map(({ storageId }) => storageId)
+      .filter(storageId => !newStorageIds.has(storageId))
+    await Promise.all(removedStorageIds.map(storageId => ctx.storage.delete(storageId)))
 
     const now = Date.now()
 

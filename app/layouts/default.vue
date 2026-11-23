@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
+import { getHoaCurrentYear } from '~/utils/hoaMeetingDisplay'
+
 const colorMode = useColorMode()
 const { isAuthenticated, signOut } = useConvexAuth()
 const route = useRoute()
 
 const { banner, isVisible } = await useSiteBanner()
 
+const currentYear = getHoaCurrentYear()
 const mobileNavOpen = ref(false)
 
 const publicNavLinks = [
@@ -66,13 +69,22 @@ watch(
 
 <template>
   <div class="flex min-h-screen flex-col">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-primary-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+    >
+      Skip to main content
+    </a>
     <M3SiteBanner
       v-if="isVisible && banner"
       :body="banner.body"
     />
     <!-- M3 Expressive: Glass header with subtle backdrop blur -->
     <header class="sticky top-0 z-50 w-full border-b border-slate-200/50 bg-white/80 backdrop-blur-lg dark:border-slate-800/50 dark:bg-slate-900/80">
-      <nav class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+      <nav
+        aria-label="Primary"
+        class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8"
+      >
         <NuxtLink
           to="/"
           class="group flex min-w-0 items-center gap-2"
@@ -81,6 +93,7 @@ watch(
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-lg shadow-primary-500/25">
             <Icon
               name="lucide:house"
+              aria-hidden="true"
               class="h-5 w-5 text-white"
             />
           </div>
@@ -94,7 +107,8 @@ watch(
             v-for="link in publicNavLinks"
             :key="link.to"
             :to="link.to"
-            class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+            exact-active-class="bg-primary-50 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300"
+            class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-ring dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
           >
             {{ link.label }}
           </NuxtLink>
@@ -180,6 +194,7 @@ watch(
                 v-for="link in publicNavLinks"
                 :key="link.to"
                 :to="link.to"
+                exact-active-class="bg-primary-50 text-primary-700 dark:bg-primary-950/60 dark:text-primary-300"
                 class="rounded-2xl px-4 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-primary-50 hover:text-primary-700 dark:text-slate-200 dark:hover:bg-primary-950/50 dark:hover:text-primary-300"
                 @click="closeMobileNav"
               >
@@ -213,7 +228,10 @@ watch(
       </USlideover>
     </header>
 
-    <main class="flex flex-1 flex-col">
+    <main
+      id="main-content"
+      class="flex flex-1 flex-col"
+    >
       <slot />
     </main>
 
@@ -230,6 +248,7 @@ watch(
               <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-primary-600">
                 <Icon
                   name="lucide:house"
+                  aria-hidden="true"
                   class="h-4 w-4 text-white"
                 />
               </div>
@@ -298,17 +317,23 @@ watch(
               <li>
                 <a
                   href="https://www.payhoa.com"
+                  rel="noopener noreferrer"
+                  target="_blank"
                   class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
                 >
                   Pay HOA Login
+                  <span class="sr-only"> (opens in a new tab)</span>
                 </a>
               </li>
               <li>
                 <a
                   href="https://www.gsphillips.com/resale-documents"
+                  rel="noopener noreferrer"
+                  target="_blank"
                   class="text-sm text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
                 >
                   Closing / Resale Documents
+                  <span class="sr-only"> (opens in a new tab)</span>
                 </a>
               </li>
               <li>
@@ -340,20 +365,24 @@ watch(
         </div>
 
         <div class="mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-200 pt-8 dark:border-slate-800 sm:flex-row">
-          <p class="text-sm text-slate-500 dark:text-slate-500">
-            © {{ new Date().getFullYear() }} Fox Ridge HOA. All rights reserved.
+          <p class="text-sm text-slate-600 dark:text-slate-400">
+            © {{ currentYear }} Fox Ridge HOA. All rights reserved.
           </p>
-          <div class="flex items-center gap-2 text-sm text-slate-500">
+          <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
             <NuxtLink
               to="/admin"
-              class="text-xs text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-400"
+              class="text-xs font-medium text-slate-600 transition-colors hover:text-primary-700 dark:text-slate-400 dark:hover:text-primary-400"
             >
               Admin
             </NuxtLink>
-            <span class="text-slate-300 dark:text-slate-700">•</span>
+            <span
+              aria-hidden="true"
+              class="text-slate-400 dark:text-slate-600"
+            >•</span>
             <span>Made with</span>
             <Icon
               name="lucide:heart"
+              aria-hidden="true"
               class="h-4 w-4 text-primary-500"
             />
             <span>in Wentzville</span>

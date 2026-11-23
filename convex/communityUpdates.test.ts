@@ -68,6 +68,8 @@ test('paginateCommunityUpdatesPublic returns older pages by posted time', async 
     'Update 20'
   ])
   expect(firstPage.data.isDone).toBe(false)
+  expect(firstPage.data).toHaveProperty('pageStatus')
+  expect(firstPage.data).toHaveProperty('splitCursor')
 
   const secondPage = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
     paginationOpts: {
@@ -137,6 +139,64 @@ test('getCommunityUpdatePublic returns null after doc deleted', async () => {
 
   expect(result.ok).toBe(true)
   expect(result.data.update).toBeNull()
+})
+
+test('getCommunityUpdatePublic returns null for malformed update ids instead of throwing', async () => {
+  const t = convexTest(schema, modules)
+
+  const result = await t.query(api.communityUpdates.getCommunityUpdatePublic, {
+    updateId: 'not-a-valid-convex-id'
+  })
+
+  expect(result.ok).toBe(true)
+  expect(result.data.update).toBeNull()
+})
+
+test('paginateCommunityUpdatesPublic respects endCursor ranges across edits and deletes', async () => {
+  const t = convexTest(schema, modules)
+  let firstId!: import('./_generated/dataModel').Id<'communityUpdates'>
+
+  await t.run(async (ctx) => {
+    firstId = await ctx.db.insert('communityUpdates', {
+      authorDisplayName: 'Board',
+      bodyMarkdown: 'Post 30',
+      createdAt: 30,
+      images: [],
+      postedAt: 30,
+      postedByAuthUserId: 'u',
+      updatedAt: 30
+    })
+    for (const postedAt of [20, 10]) {
+      await ctx.db.insert('communityUpdates', {
+        authorDisplayName: 'Board',
+        bodyMarkdown: `Post ${postedAt}`,
+        createdAt: postedAt,
+        images: [],
+        postedAt,
+        postedByAuthUserId: 'u',
+        updatedAt: postedAt
+      })
+    }
+  })
+
+  const page1 = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
+    paginationOpts: { cursor: null, id: 1, numItems: 2 }
+  })
+  expect(page1.data.updates.map(u => u.bodyMarkdown)).toEqual(['Post 30', 'Post 20'])
+
+  await t.run(async (ctx) => {
+    await ctx.db.delete(firstId)
+  })
+
+  const sealedPage1 = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
+    paginationOpts: { cursor: null, endCursor: page1.data.continueCursor, id: 1, numItems: 2 }
+  })
+  const page2 = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
+    paginationOpts: { cursor: page1.data.continueCursor, id: 1, numItems: 2 }
+  })
+
+  expect(sealedPage1.data.updates.map(u => u.bodyMarkdown)).toEqual(['Post 20'])
+  expect(page2.data.updates.map(u => u.bodyMarkdown)).toEqual(['Post 10'])
 })
 
 test('updateCommunityUpdate throws when unauthenticated', async () => {

@@ -132,32 +132,45 @@ async function submitRouting() {
   }
 }
 
-/** Submissions inbox (paginated) */
-const PAGE_SIZE = 25
-const paginationOpts = ref<{ cursor: null | string, numItems: number }>({
-  cursor: null,
-  numItems: PAGE_SIZE
+/** Submissions inbox (live-subscribed cursor pages with sealed endCursor ranges) */
+interface PaginatedSubmissionsResponse {
+  data: {
+    continueCursor: null | string
+    isDone: boolean
+    page: SubmissionRow[]
+    pageStatus?: 'SplitRecommended' | 'SplitRequired' | null
+    splitCursor?: null | string
+  }
+  ok: true
+}
+
+const {
+  canLoadMore: canLoadMoreSubmissions,
+  error: submissionsError,
+  initialized: listInitialized,
+  isPending: loadingSubmissions,
+  items: accumulatedSubmissions,
+  loadMore: loadMoreSubmissions,
+  refresh: refreshSubmissionList,
+  retryFailedPages: retryFailedSubmissionPages
+} = await useLiveConvexPagination<PaginatedSubmissionsResponse, SubmissionRow, Id<'boardContactSubmissions'>>({
+  enabled: isBoardMember,
+  extractPage: (raw) => {
+    if (!raw?.ok)
+      return null
+    return {
+      continueCursor: raw.data.continueCursor ?? null,
+      isDone: raw.data.isDone,
+      items: raw.data.page,
+      pageStatus: raw.data.pageStatus,
+      splitCursor: raw.data.splitCursor
+    }
+  },
+  getItemId: row => row.submissionId,
+  pageSize: 25,
+  query: api.boardContact.listBoardContactSubmissions
 })
 
-const submissionsState = await useConvexQuery(
-  api.boardContact.listBoardContactSubmissions,
-  () => isBoardMember.value
-    ? { paginationOpts: paginationOpts.value }
-    : 'skip'
-)
-
-const submissionPage = computed(
-  () => submissionsState.data.value?.data.page ?? []
-)
-const submissionIsDone = computed(
-  () => submissionsState.data.value?.data.isDone ?? true
-)
-const submissionContinueCursor = computed(
-  () => submissionsState.data.value?.data.continueCursor ?? null
-)
-
-const accumulatedSubmissions = ref<SubmissionRow[]>([])
-const listInitialized = ref(false)
 const viewedSubmission = ref<SubmissionRow | null>(null)
 const messageModalOpen = ref(false)
 const submissionPendingDeletion = ref<SubmissionRow | null>(null)
@@ -165,59 +178,14 @@ const deleteModalOpen = ref(false)
 const deletingSubmissionId = ref<Id<'boardContactSubmissions'> | null>(null)
 const deleteSubmission = useConvexMutation(api.boardContact.deleteBoardContactSubmission)
 
-watch(
-  () =>
-    ({
-      cursor: paginationOpts.value.cursor,
-      loading: submissionsState.status.value === 'pending',
-      page: submissionPage.value
-    }) as const,
-  ({ cursor, loading, page }) => {
-    if (loading || !submissionsState.data.value?.ok)
-      return
-
-    if (cursor === null) {
-      accumulatedSubmissions.value = page
-      listInitialized.value = true
-    } else {
-      accumulatedSubmissions.value = [...accumulatedSubmissions.value, ...page]
-    }
-  },
-  { deep: true, immediate: true }
-)
-
-watch(isBoardMember, (board) => {
-  if (!board) {
-    accumulatedSubmissions.value = []
-    listInitialized.value = false
-    paginationOpts.value = { cursor: null, numItems: PAGE_SIZE }
-  }
+const submissionsErrorMessage = computed<null | string>(() => {
+  const err = submissionsError.value
+  if (!err)
+    return null
+  return err instanceof Error && err.message.trim().length > 0
+    ? err.message
+    : 'Could not load older submissions. Try again.'
 })
-
-const loadingSubmissions = computed(() => {
-  if (!isBoardMember.value)
-    return false
-  return submissionsState.status.value === 'pending'
-})
-
-const canLoadMoreSubmissions = computed(
-  () => !submissionIsDone.value && submissionContinueCursor.value !== null
-)
-
-function loadMoreSubmissions() {
-  if (!submissionContinueCursor.value)
-    return
-  paginationOpts.value = {
-    cursor: submissionContinueCursor.value,
-    numItems: PAGE_SIZE
-  }
-}
-
-function refreshSubmissionList() {
-  accumulatedSubmissions.value = []
-  listInitialized.value = false
-  paginationOpts.value = { cursor: null, numItems: PAGE_SIZE }
-}
 
 function previewMessage(message: string): string {
   const compact = message.replace(/\s+/g, ' ').trim()
@@ -242,9 +210,6 @@ async function confirmDeleteSubmission() {
   deletingSubmissionId.value = row.submissionId
   try {
     await deleteSubmission({ submissionId: row.submissionId })
-    accumulatedSubmissions.value = accumulatedSubmissions.value.filter(
-      submission => submission.submissionId !== row.submissionId
-    )
 
     if (viewedSubmission.value?.submissionId === row.submissionId) {
       viewedSubmission.value = null
@@ -446,6 +411,27 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
         >
           Loading submissions…
         </div>
+
+        <UAlert
+          v-else-if="submissionsErrorMessage && accumulatedSubmissions.length === 0"
+          color="error"
+          variant="soft"
+          icon="i-lucide-alert-circle"
+          title="Could not load submissions"
+          :description="submissionsErrorMessage"
+        >
+          <template #actions>
+            <UButton
+              color="error"
+              size="sm"
+              type="button"
+              variant="subtle"
+              @click="retryFailedSubmissionPages"
+            >
+              Try again
+            </UButton>
+          </template>
+        </UAlert>
 
         <div
           v-else-if="accumulatedSubmissions.length === 0"
@@ -649,6 +635,27 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               </tbody>
             </table>
           </div>
+
+          <UAlert
+            v-if="submissionsErrorMessage"
+            color="error"
+            variant="soft"
+            icon="i-lucide-alert-circle"
+            title="Could not load older submissions"
+            :description="submissionsErrorMessage"
+          >
+            <template #actions>
+              <UButton
+                color="error"
+                size="sm"
+                type="button"
+                variant="subtle"
+                @click="retryFailedSubmissionPages"
+              >
+                Try again
+              </UButton>
+            </template>
+          </UAlert>
 
           <UButton
             v-if="canLoadMoreSubmissions"

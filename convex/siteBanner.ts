@@ -9,13 +9,7 @@ import { requireBoardMember } from './authz/requireBoardMember'
 const MAX_BANNER_BODY_CHARS = 2_000
 
 async function readNewestSiteBanner(ctx: QueryCtx | MutationCtx): Promise<Doc<'siteBanner'> | null> {
-  const rows = await ctx.db.query('siteBanner').collect()
-  if (rows.length === 0)
-    return null
-
-  return rows.reduce((best, row) =>
-    row._creationTime > best._creationTime ? row : best
-  )
+  return await ctx.db.query('siteBanner').order('desc').first()
 }
 
 export const getPublicSiteBanner = query({

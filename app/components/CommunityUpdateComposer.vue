@@ -131,9 +131,17 @@ const generateUploadUrl = useConvexMutation(api.communityUpdates.generateCommuni
 const createUpdate = useConvexMutation(api.communityUpdates.createCommunityUpdate)
 const updateUpdate = useConvexMutation(api.communityUpdates.updateCommunityUpdate)
 
+function revokeNewImageUrls(list: ComposerImage[]) {
+  for (const img of list) {
+    if (img.type === 'new' && img.url.startsWith('blob:'))
+      URL.revokeObjectURL(img.url)
+  }
+}
+
 watch(
   () => props.update,
   (newVal) => {
+    revokeNewImageUrls(images.value)
     if (newVal) {
       bodyMarkdown.value = newVal.bodyMarkdown
       postDateTime.value = toLocalDateTimeInputValue(new Date(newVal.postedAt))
@@ -153,10 +161,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  for (const img of images.value) {
-    if (img.type === 'new' && img.url.startsWith('blob:'))
-      URL.revokeObjectURL(img.url)
-  }
+  revokeNewImageUrls(images.value)
 })
 
 function toLocalDateTimeInputValue(date: Date): string {
@@ -250,16 +255,19 @@ async function submitPublish() {
 
   publishing.value = true
   try {
-    const storageIds: Id<'_storage'>[] = []
-    for (const img of images.value) {
-      if (img.type === 'existing' && img.storageId) {
-        storageIds.push(img.storageId)
-      } else if (img.type === 'new' && img.file) {
-        const uploadUrl = await generateUploadUrl({}) as string
-        const storageId = await postImageToConvexUploadUrl(uploadUrl, img.file)
-        storageIds.push(storageId as Id<'_storage'>)
-      }
-    }
+    const resolvedStorageIds = await Promise.all(
+      images.value.map(async (img): Promise<Id<'_storage'> | null> => {
+        if (img.type === 'existing' && img.storageId)
+          return img.storageId
+        if (img.type === 'new' && img.file) {
+          const uploadUrl = await generateUploadUrl({}) as string
+          const storageId = await postImageToConvexUploadUrl(uploadUrl, img.file)
+          return storageId as Id<'_storage'>
+        }
+        return null
+      })
+    )
+    const storageIds = resolvedStorageIds.filter((id): id is Id<'_storage'> => id !== null)
 
     if (props.update) {
       await updateUpdate({
@@ -281,6 +289,7 @@ async function submitPublish() {
         postedAt
       })
 
+      revokeNewImageUrls(images.value)
       bodyMarkdown.value = '# Community update\n\n'
       postDateTime.value = toLocalDateTimeInputValue(new Date())
       images.value = []
@@ -406,7 +415,7 @@ async function submitPublish() {
               alt=""
               class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             >
-            <div class="absolute inset-0 bg-slate-950/20 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center justify-center">
+            <div class="absolute inset-0 flex items-center justify-center bg-slate-950/25 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
               <UButton
                 color="error"
                 icon="i-lucide-trash-2"
@@ -418,8 +427,8 @@ async function submitPublish() {
               />
             </div>
             <span
-              class="absolute bottom-1 left-1 rounded px-1 text-[10px] font-medium leading-none shadow-sm"
-              :class="img.type === 'existing' ? 'bg-slate-900/80 text-slate-100' : 'bg-mint-500/90 text-slate-900'"
+              class="absolute bottom-1 left-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none shadow-sm"
+              :class="img.type === 'existing' ? 'bg-slate-900/80 text-slate-100' : 'bg-primary-700 text-white'"
             >
               {{ img.type === 'existing' ? 'Saved' : 'New' }}
             </span>

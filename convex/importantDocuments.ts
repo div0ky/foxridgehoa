@@ -152,9 +152,8 @@ export const createImportantDocument = mutation({
       if (!label)
         throw new ConvexError('Each PDF needs a label.')
       assertTextLength(label, MAX_FILE_LABEL_CHARS, 'PDF label')
-
-      await assertPdfStorage(ctx, file.storageId)
     }
+    await Promise.all(args.files.map(file => assertPdfStorage(ctx, file.storageId)))
 
     const existing = await ctx.db.query('importantDocuments').take(MAX_DOCUMENTS)
     if (existing.length >= MAX_DOCUMENTS)
@@ -242,9 +241,8 @@ export const appendFilesToImportantDocument = mutation({
       if (!label)
         throw new ConvexError('Each PDF needs a label.')
       assertTextLength(label, MAX_FILE_LABEL_CHARS, 'PDF label')
-
-      await assertPdfStorage(ctx, file.storageId)
     }
+    await Promise.all(args.files.map(file => assertPdfStorage(ctx, file.storageId)))
 
     const newFiles = args.files.map(file => ({
       label: file.label.trim(),
@@ -335,8 +333,7 @@ export const deleteImportantDocument = mutation({
     if (!doc)
       throw new ConvexError('Document not found.')
 
-    for (const file of doc.files)
-      await ctx.storage.delete(file.storageId)
+    await Promise.all(doc.files.map(file => ctx.storage.delete(file.storageId)))
 
     await ctx.db.delete(args.documentId)
 

@@ -24,7 +24,7 @@ const sizeClasses = {
 
 <template>
   <span
-    class="inline-flex items-center rounded-full font-medium tracking-wide transition-all duration-300"
+    class="inline-flex items-center rounded-full font-medium tracking-wide transition-colors duration-300"
     :class="[variantClasses[variant], sizeClasses[size]]"
   >
     <slot />

@@ -18,7 +18,7 @@ withDefaults(defineProps<Props>(), {
   <div
     :style="{
       alignItems: 'stretch',
-      background: '#f0fdfa',
+      background: '#fff7ed',
       color: '#0f172a',
       display: 'flex',
       flexDirection: 'column',
@@ -49,7 +49,7 @@ withDefaults(defineProps<Props>(), {
         <div
           :style="{
             alignItems: 'center',
-            background: '#0f766e',
+            background: '#ea580c',
             borderRadius: '26px',
             color: '#ffffff',
             display: 'flex',
@@ -70,7 +70,7 @@ withDefaults(defineProps<Props>(), {
         >
           <div
             :style="{
-              color: '#0f766e',
+              color: '#c2410c',
               fontSize: '26px',
               fontWeight: 800,
               letterSpacing: '0.08em',

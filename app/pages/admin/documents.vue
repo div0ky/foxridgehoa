@@ -10,7 +10,7 @@ import {
   normalizeImportantDocumentIcon,
   type ImportantDocumentCardIcon
 } from '~/config/important-document-icons'
-import { postPdfToConvexUploadUrl } from '~/utils/convexPdfUpload'
+import { postPdfToConvexUploadUrl, validatePdfFile } from '~/utils/convexPdfUpload'
 
 definePageMeta({
   convexAuth: true,
@@ -56,14 +56,20 @@ const createDescription = ref('')
 const createIcon = ref<ImportantDocumentCardIcon>(defaultImportantDocumentIcon)
 
 interface PdfRow {
-  label: string
   file: File | null
+  id: number
+  label: string
 }
 
-const createRows = ref<PdfRow[]>([{ file: null, label: '' }])
+let nextCreateRowId = 1
+function createEmptyPdfRow(): PdfRow {
+  return { file: null, id: nextCreateRowId++, label: '' }
+}
+
+const createRows = ref<PdfRow[]>([createEmptyPdfRow()])
 
 function addCreatePdfRow() {
-  createRows.value.push({ file: null, label: '' })
+  createRows.value.push(createEmptyPdfRow())
 }
 
 function removeCreatePdfRow(index: number) {
@@ -76,6 +82,9 @@ function removeCreatePdfRow(index: number) {
 const creating = ref(false)
 
 async function submitCreate() {
+  if (creating.value)
+    return
+
   const title = createTitle.value.trim()
   const description = createDescription.value.trim()
   if (!title || !description) {
@@ -106,19 +115,38 @@ async function submitCreate() {
     return
   }
 
+  const snapshot = rows.map(row => ({
+    file: row.file!,
+    label: row.label.trim()
+  }))
+  const icon = createIcon.value || undefined
+
   creating.value = true
   try {
-    const uploaded: { label: string, storageId: Id<'_storage'> }[] = []
-    for (const row of rows) {
-      const uploadUrl = await generateUploadUrl({}) as string
-      const storageId = await postPdfToConvexUploadUrl(uploadUrl, row.file!)
-      uploaded.push({ label: row.label.trim(), storageId: storageId as Id<'_storage'> })
+    for (const item of snapshot) {
+      const pdfError = await validatePdfFile(item.file)
+      if (pdfError) {
+        toast.add({
+          color: 'warning',
+          description: pdfError,
+          title: 'Invalid PDF'
+        })
+        return
+      }
     }
+
+    const uploaded = await Promise.all(
+      snapshot.map(async (item) => {
+        const uploadUrl = await generateUploadUrl({}) as string
+        const storageId = await postPdfToConvexUploadUrl(uploadUrl, item.file)
+        return { label: item.label, storageId: storageId as Id<'_storage'> }
+      })
+    )
 
     await createDocument({
       description,
       files: uploaded,
-      icon: createIcon.value || undefined,
+      icon,
       title
     })
 
@@ -131,7 +159,7 @@ async function submitCreate() {
     createTitle.value = ''
     createDescription.value = ''
     createIcon.value = defaultImportantDocumentIcon
-    createRows.value = [{ file: null, label: '' }]
+    createRows.value = [createEmptyPdfRow()]
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not create document.'
     toast.add({
@@ -183,36 +211,39 @@ async function saveEditMeta(documentId: Id<'importantDocuments'>) {
 }
 
 /** Append PDF (per document id) */
-const appendDrafts = reactive<Record<string, { file: File | null, label: string }>>({})
+const appendDrafts = reactive<Record<string, { file: File | null, inputKey: number, label: string }>>({})
 const appendingForId = ref<string | null>(null)
+const reordering = ref(false)
+
+function getOrCreateAppendDraft(documentId: string) {
+  if (!appendDrafts[documentId])
+    appendDrafts[documentId] = { file: null, inputKey: 0, label: '' }
+  return appendDrafts[documentId]
+}
 
 watch(
   documents,
   (docs) => {
-    for (const d of docs) {
-      if (!appendDrafts[d.id])
-        appendDrafts[d.id] = { file: null, label: '' }
-    }
+    for (const d of docs)
+      getOrCreateAppendDraft(d.id)
   },
-  { immediate: true }
+  { flush: 'sync', immediate: true }
 )
 
 function setAppendFile(documentId: Id<'importantDocuments'>, event: Event) {
   const input = event.target as HTMLInputElement
-  const draft = appendDrafts[documentId]
-  if (!draft)
-    return
-
+  const draft = getOrCreateAppendDraft(documentId)
   draft.file = input.files?.[0] ?? null
 }
 
 async function submitAppend(documentId: Id<'importantDocuments'>) {
-  const draft = appendDrafts[documentId]
-  if (!draft)
+  if (appendingForId.value !== null)
     return
 
+  const draft = getOrCreateAppendDraft(documentId)
   const label = draft.label.trim()
-  if (!label || !draft.file) {
+  const file = draft.file
+  if (!label || !file) {
     toast.add({
       color: 'warning',
       description: 'Choose a label and a PDF file.',
@@ -223,8 +254,18 @@ async function submitAppend(documentId: Id<'importantDocuments'>) {
 
   appendingForId.value = documentId
   try {
+    const pdfError = await validatePdfFile(file)
+    if (pdfError) {
+      toast.add({
+        color: 'warning',
+        description: pdfError,
+        title: 'Invalid PDF'
+      })
+      return
+    }
+
     const uploadUrl = await generateUploadUrl({}) as string
-    const storageId = await postPdfToConvexUploadUrl(uploadUrl, draft.file)
+    const storageId = await postPdfToConvexUploadUrl(uploadUrl, file)
 
     await appendFiles({
       documentId,
@@ -234,6 +275,7 @@ async function submitAppend(documentId: Id<'importantDocuments'>) {
     toast.add({ color: 'success', title: 'PDF added' })
     draft.label = ''
     draft.file = null
+    draft.inputKey += 1
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Append failed.'
     toast.add({ color: 'error', description: message, title: 'Could not add PDF' })
@@ -258,8 +300,11 @@ async function onRemoveFile(documentId: Id<'importantDocuments'>, storageId: Id<
 
 const replaceInputEl = ref<HTMLInputElement | null>(null)
 const replaceJob = ref<{ documentId: Id<'importantDocuments'>, oldStorageId: Id<'_storage'> } | null>(null)
+const replacing = ref(false)
 
 function openReplacePicker(documentId: Id<'importantDocuments'>, oldStorageId: Id<'_storage'>) {
+  if (replacing.value)
+    return
   replaceJob.value = { documentId, oldStorageId }
   replaceInputEl.value?.click()
 }
@@ -270,10 +315,17 @@ async function onReplaceFileSelected(event: Event) {
   input.value = ''
   const job = replaceJob.value
   replaceJob.value = null
-  if (!file || !job)
+  if (!file || !job || replacing.value)
     return
 
+  replacing.value = true
   try {
+    const pdfError = await validatePdfFile(file)
+    if (pdfError) {
+      toast.add({ color: 'warning', description: pdfError, title: 'Invalid PDF' })
+      return
+    }
+
     const uploadUrl = await generateUploadUrl({}) as string
     const storageId = await postPdfToConvexUploadUrl(uploadUrl, file)
 
@@ -287,6 +339,8 @@ async function onReplaceFileSelected(event: Event) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Replace failed.'
     toast.add({ color: 'error', description: message, title: 'Could not replace' })
+  } finally {
+    replacing.value = false
   }
 }
 
@@ -304,6 +358,9 @@ async function onDeleteDocument(documentId: Id<'importantDocuments'>) {
 }
 
 async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 | 1) {
+  if (reordering.value)
+    return
+
   const ids = documents.value.map((d: { id: Id<'importantDocuments'> }) => d.id)
   const idx = ids.indexOf(documentId)
   const swap = idx + direction
@@ -315,6 +372,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
   next[idx] = next[swap]!
   next[swap] = temp
 
+  reordering.value = true
   try {
     await reorderDocuments({
       orderedDocumentIds: next
@@ -323,6 +381,8 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Reorder failed.'
     toast.add({ color: 'error', description: message, title: 'Could not reorder' })
+  } finally {
+    reordering.value = false
   }
 }
 </script>
@@ -390,7 +450,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                 <UInput
                   v-model.trim="createTitle"
                   class="w-full"
-                  maxlength="200"
+                  maxlength="160"
                   placeholder="e.g. HOA indentures"
                   size="lg"
                 />
@@ -424,7 +484,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                 </p>
                 <div
                   v-for="(row, index) in createRows"
-                  :key="index"
+                  :key="row.id"
                   class="flex flex-col gap-3 rounded-lg border border-default p-3 sm:flex-row sm:items-end"
                 >
                   <UFormField
@@ -433,7 +493,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                   >
                     <UInput
                       v-model.trim="row.label"
-                      maxlength="120"
+                      maxlength="160"
                       placeholder="e.g. Original filing"
                       size="md"
                     />
@@ -515,7 +575,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
             </h2>
 
             <UCard
-              v-for="doc in documents"
+              v-for="(doc, docIndex) in documents"
               :key="doc.id"
               variant="outline"
             >
@@ -533,6 +593,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     <UButton
                       color="neutral"
                       icon="i-lucide-arrow-up"
+                      :disabled="reordering || docIndex === 0"
                       size="md"
                       square
                       variant="outline"
@@ -542,6 +603,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     <UButton
                       color="neutral"
                       icon="i-lucide-arrow-down"
+                      :disabled="reordering || docIndex === documents.length - 1"
                       size="md"
                       square
                       variant="outline"
@@ -578,7 +640,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     <UInput
                       v-model.trim="editTitle"
                       class="w-full"
-                      maxlength="200"
+                      maxlength="160"
                     />
                   </UFormField>
                   <UFormField label="Description">
@@ -651,8 +713,8 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     class="min-w-0 flex-1"
                   >
                     <UInput
-                      v-model.trim="appendDrafts[doc.id]!.label"
-                      maxlength="120"
+                      v-model.trim="getOrCreateAppendDraft(doc.id).label"
+                      maxlength="160"
                       placeholder="Label"
                       size="sm"
                     />
@@ -662,6 +724,7 @@ async function moveDocument(documentId: Id<'importantDocuments'>, direction: -1 
                     class="min-w-0 flex-1"
                   >
                     <input
+                      :key="`${doc.id}-${getOrCreateAppendDraft(doc.id).inputKey}`"
                       accept=".pdf,application/pdf"
                       class="block w-full max-w-full text-sm"
                       type="file"

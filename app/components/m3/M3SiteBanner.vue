@@ -8,7 +8,7 @@ defineProps<Props>()
 
 <template>
   <div
-    class="w-full border-b-2 border-primary-800 bg-gradient-to-r from-primary-600 via-primary-500 to-primary-600 shadow-md shadow-primary-900/30 transition-all duration-300 dark:border-primary-300 dark:from-primary-500 dark:via-primary-400 dark:to-primary-500 dark:shadow-black/35"
+    class="w-full border-b-2 border-primary-900 bg-gradient-to-r from-primary-800 via-primary-700 to-primary-800 shadow-md shadow-primary-950/30 transition-colors duration-300 dark:border-primary-700 dark:from-primary-900 dark:via-primary-800 dark:to-primary-900 dark:shadow-black/35"
     role="region"
     aria-label="Site announcement"
   >

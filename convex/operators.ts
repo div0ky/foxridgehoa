@@ -76,6 +76,12 @@ function generateTemporaryPassword(): string {
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
+const ROLE_DISPLAY_LABELS: Record<Infer<typeof operatorRole>, string> = {
+  boardMember: 'Board member',
+  homeOwner: 'Home owner',
+  managementCompany: 'Management company'
+}
+
 function buildInviteEmailBody(args: {
   name: string
   role: Infer<typeof operatorRole>
@@ -89,7 +95,7 @@ function buildInviteEmailBody(args: {
     '',
     `Sign in: ${args.signInUrl}`,
     `Temporary password: ${args.temporaryPassword}`,
-    `Role: ${args.role}`,
+    `Role: ${ROLE_DISPLAY_LABELS[args.role]}`,
     '',
     'Please sign in and change this temporary password after your first login.'
   ].join('\n')
@@ -104,6 +110,11 @@ async function sendInviteEmail(args: {
   signInUrl: string
   temporaryPassword: string
 }): Promise<boolean> {
+  const timeoutSignal
+    = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(15_000)
+      : undefined
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       body: JSON.stringify({
@@ -116,7 +127,8 @@ async function sendInviteEmail(args: {
         'Authorization': `Bearer ${args.apiKey}`,
         'Content-Type': 'application/json'
       },
-      method: 'POST'
+      method: 'POST',
+      ...(timeoutSignal ? { signal: timeoutSignal } : {})
     })
 
     return res.ok

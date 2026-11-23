@@ -2,7 +2,33 @@
 import { computed } from 'vue'
 
 import { normalizeImportantDocumentIcon } from '~/config/important-document-icons'
-import { communityUpdateHeadline, getCommunityUpdatePostedAtLabel } from '~/utils/communityUpdateExcerpt'
+import {
+  communityUpdateHeadline,
+  formatCommunityUpdateIsoDateTime,
+  getCommunityUpdatePostedAtLabel
+} from '~/utils/communityUpdateExcerpt'
+import { getHoaCurrentMonth } from '~/utils/hoaMeetingDisplay'
+
+const runtimeConfig = useRuntimeConfig()
+const canonicalHomeUrl = `${runtimeConfig.public.siteUrl.replace(/\/+$/, '')}/`
+
+useSeoMeta({
+  description: 'Official community information, updates, meetings, and resident resources for Fox Ridge HOA in Wentzville, Missouri.',
+  ogDescription: 'Official community information, updates, meetings, and resident resources for Fox Ridge HOA in Wentzville, Missouri.',
+  ogTitle: 'Fox Ridge HOA · Wentzville, Missouri',
+  ogType: 'website',
+  ogUrl: canonicalHomeUrl,
+  title: 'Fox Ridge HOA · Wentzville, Missouri'
+})
+
+useHead({
+  link: [
+    {
+      href: canonicalHomeUrl,
+      rel: 'canonical'
+    }
+  ]
+})
 
 const [
   { documents, isPending: importantDocumentsPending },
@@ -34,11 +60,12 @@ const communityUpdateTeasers = computed(() =>
     id: update.id,
     imageUrls: update.imageUrls,
     postedAt: update.postedAt,
+    postedAtIso: formatCommunityUpdateIsoDateTime(update.postedAt),
     postedAtLabel: getCommunityUpdatePostedAtLabel({ postedAt: update.postedAt })
   }))
 )
 
-const currentMonth = new Date().getMonth()
+const currentMonth = getHoaCurrentMonth()
 const shouldShowHoaPaymentReminder = [0, 1, 11].includes(currentMonth)
 
 type BoardMemberCard = {
@@ -60,7 +87,7 @@ const boardMembers: BoardMemberCard[] = [
     termYear: 2027
   },
   {
-    imageSrc: '/images/board/aaron-spurlock.png',
+    imageSrc: '/images/board/aaron-spurlock.webp',
     name: 'Aaron Spurlock',
     role: 'Board Member',
     termYear: 2028
@@ -271,12 +298,10 @@ function iconForImportantDoc(icon?: string) {
       />
       <div class="mt-12 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
         <M3Card
-          v-for="(member, index) in boardMembers"
+          v-for="member in boardMembers"
           :key="member.name"
           variant="elevated"
-          hoverable
           as="article"
-          :class="`stagger-${index + 1}`"
         >
           <div class="mb-4 flex items-start justify-between">
             <div
@@ -290,10 +315,12 @@ function iconForImportantDoc(icon?: string) {
                 height="56"
                 class="h-full w-full object-cover object-center"
                 decoding="async"
+                loading="lazy"
               >
               <Icon
                 v-else
                 name="lucide:user"
+                aria-hidden="true"
                 class="h-7 w-7 text-slate-500 dark:text-slate-400"
               />
             </div>
@@ -483,16 +510,25 @@ function iconForImportantDoc(icon?: string) {
             >
           </div>
           <h3 class="mb-4 line-clamp-4 break-words text-xl font-semibold leading-snug text-slate-900 dark:text-white">
-            {{ update.headline }}
+            <NuxtLink
+              :to="`/updates/${update.id}`"
+              class="rounded transition-colors hover:text-primary-700 focus-ring dark:hover:text-primary-400"
+            >
+              {{ update.headline }}
+            </NuxtLink>
           </h3>
-          <div class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div class="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
             <Icon
               name="lucide:circle-user-round"
+              aria-hidden="true"
               class="h-4 w-4 shrink-0"
             />
             <span class="min-w-0 break-words">{{ update.authorDisplayName }}</span>
-            <span class="text-slate-300 dark:text-slate-600">•</span>
-            <time :datetime="String(update.postedAt)">
+            <span
+              aria-hidden="true"
+              class="text-slate-300 dark:text-slate-600"
+            >•</span>
+            <time :datetime="update.postedAtIso">
               {{ update.postedAtLabel }}
             </time>
           </div>
@@ -545,7 +581,7 @@ function iconForImportantDoc(icon?: string) {
           <div class="space-y-3 sm:space-y-4">
             <NuxtLink
               to="/contact-the-board"
-              class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft transition-all hover:shadow-soft-lg sm:p-5 dark:bg-slate-800"
+              class="flex items-center gap-4 rounded-2xl bg-surface-elevated p-4 shadow-soft transition-shadow duration-300 hover:shadow-soft-lg focus-ring sm:p-5 dark:bg-slate-800"
             >
               <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/50">
                 <Icon

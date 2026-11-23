@@ -2,7 +2,7 @@ import { useNow } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
-import { formatHoaMeetingLine } from '~/utils/hoaMeetingDisplay'
+import { formatHoaMeetingLine, getHoaCurrentYear } from '~/utils/hoaMeetingDisplay'
 
 export interface PublicMeetingRow {
   atMs: number
@@ -13,12 +13,14 @@ export interface PublicMeetingRow {
 }
 
 export async function usePublicMeetingSchedule() {
-  const displayYear = ref(new Date().getFullYear())
+  const displayYear = ref(getHoaCurrentYear())
   const now = useNow({ interval: 60_000 })
 
-  const state = await useConvexQuery(api.meetingSchedule.getPublicMeetingSchedule, () => ({
-    year: displayYear.value
-  }))
+  const state = await useConvexQuery(
+    api.meetingSchedule.getPublicMeetingSchedule,
+    () => ({ year: displayYear.value }),
+    { auth: 'none' }
+  )
 
   const schedule = computed(() => state.data.value?.data.schedule ?? null)
   const isPending = computed(() => state.status.value === 'pending')

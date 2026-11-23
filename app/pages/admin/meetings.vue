@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { api } from '~~/convex/_generated/api'
 
+import { getHoaCurrentYear } from '~/utils/hoaMeetingDisplay'
+
 definePageMeta({
   convexAuth: true,
   layout: 'admin-dashboard'
@@ -17,7 +19,8 @@ const profile = computed(() => profileState.data.value?.data.profile)
 const loadingProfile = computed(() => profileState.status.value === 'pending')
 const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
-const scheduleYear = ref(new Date().getFullYear())
+const currentHoaYear = getHoaCurrentYear()
+const scheduleYear = ref(currentHoaYear)
 
 const adminScheduleState = await useConvexQuery(
   api.meetingSchedule.getAdminMeetingSchedule,
@@ -186,8 +189,8 @@ async function submitSave() {
             v-model.number="scheduleYear"
             class="w-full max-w-xs"
             type="number"
-            :min="new Date().getFullYear() - 1"
-            :max="new Date().getFullYear() + 2"
+            :min="currentHoaYear - 1"
+            :max="currentHoaYear + 2"
             step="1"
           />
         </UFormField>

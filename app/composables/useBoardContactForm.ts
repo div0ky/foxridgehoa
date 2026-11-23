@@ -30,30 +30,38 @@ function boardContactDeliveryErrorMessage(error: unknown): string {
   return GENERIC_SUBMIT_ERROR
 }
 
-function clientValidationMessage(args: {
+export interface BoardContactFieldErrors {
+  message?: string
+  streetAddress?: string
+  submitterName?: string
+}
+
+function validateContactFields(args: {
   message: string
   streetAddress: string
   submitterName: string
-}): string | null {
+}): BoardContactFieldErrors {
+  const errors: BoardContactFieldErrors = {}
   const submitterName = args.submitterName.trim()
   const streetAddress = args.streetAddress.trim()
   const message = args.message.trim()
 
   if (!submitterName)
-    return 'Enter your name.'
+    errors.submitterName = 'Enter your name.'
+  else if (submitterName.length > BOARD_CONTACT_LIMITS.name)
+    errors.submitterName = `Name must be at most ${BOARD_CONTACT_LIMITS.name} characters.`
+
   if (!streetAddress)
-    return 'Enter your street address (e.g. 123 Rifle Ridge).'
+    errors.streetAddress = 'Enter your street address (e.g. 123 Rifle Ridge).'
+  else if (streetAddress.length > BOARD_CONTACT_LIMITS.street)
+    errors.streetAddress = `Street address must be at most ${BOARD_CONTACT_LIMITS.street} characters.`
+
   if (!message)
-    return 'Enter a message.'
+    errors.message = 'Enter a message.'
+  else if (message.length > BOARD_CONTACT_LIMITS.message)
+    errors.message = `Message must be at most ${BOARD_CONTACT_LIMITS.message} characters.`
 
-  if (submitterName.length > BOARD_CONTACT_LIMITS.name)
-    return `Name must be at most ${BOARD_CONTACT_LIMITS.name} characters.`
-  if (streetAddress.length > BOARD_CONTACT_LIMITS.street)
-    return `Street address must be at most ${BOARD_CONTACT_LIMITS.street} characters.`
-  if (message.length > BOARD_CONTACT_LIMITS.message)
-    return `Message must be at most ${BOARD_CONTACT_LIMITS.message} characters.`
-
-  return null
+  return errors
 }
 
 export function useBoardContactForm() {
@@ -63,23 +71,41 @@ export function useBoardContactForm() {
   const submitterName = ref('')
   const streetAddress = ref('')
   const message = ref('')
+  const fieldErrors = ref<BoardContactFieldErrors>({})
   const isSubmitting = ref(false)
   const statusAnnouncement = ref<null | string>(null)
+
+  watch(submitterName, () => {
+    if (fieldErrors.value.submitterName)
+      fieldErrors.value = { ...fieldErrors.value, submitterName: undefined }
+  })
+
+  watch(streetAddress, () => {
+    if (fieldErrors.value.streetAddress)
+      fieldErrors.value = { ...fieldErrors.value, streetAddress: undefined }
+  })
+
+  watch(message, () => {
+    if (fieldErrors.value.message)
+      fieldErrors.value = { ...fieldErrors.value, message: undefined }
+  })
 
   async function submit() {
     statusAnnouncement.value = null
 
-    const validationError = clientValidationMessage({
+    const errors = validateContactFields({
       message: message.value,
       streetAddress: streetAddress.value,
       submitterName: submitterName.value
     })
+    fieldErrors.value = errors
 
-    if (validationError) {
-      statusAnnouncement.value = validationError
+    const firstValidationError = errors.submitterName ?? errors.streetAddress ?? errors.message ?? null
+    if (firstValidationError) {
+      statusAnnouncement.value = firstValidationError
       toast.add({
         color: 'warning',
-        description: validationError,
+        description: firstValidationError,
         title: 'Check your form'
       })
       return
@@ -102,6 +128,7 @@ export function useBoardContactForm() {
       submitterName.value = ''
       streetAddress.value = ''
       message.value = ''
+      fieldErrors.value = {}
     } catch (error) {
       const description = boardContactDeliveryErrorMessage(error)
       statusAnnouncement.value = description
@@ -116,6 +143,7 @@ export function useBoardContactForm() {
   }
 
   return {
+    fieldErrors,
     isSubmitting,
     message,
     statusAnnouncement,
