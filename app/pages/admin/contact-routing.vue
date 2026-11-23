@@ -19,10 +19,35 @@ const profile = computed(() => profileState.data.value?.data.profile)
 const loadingProfile = computed(() => profileState.status.value === 'pending')
 const isBoardMember = computed(() => profile.value?.role === 'boardMember')
 
-const routingState = await useConvexQuery(
-  api.boardContact.getBoardContactRouting,
-  () => isBoardMember.value ? {} : 'skip'
-)
+const PAGE_SIZE = 25
+
+function deduplicateBySubmissionId<T extends { submissionId: Id<'boardContactSubmissions'> }>(rows: T[]): T[] {
+  const merged: T[] = []
+  const seen = new Set<Id<'boardContactSubmissions'>>()
+  for (const row of rows) {
+    if (!seen.has(row.submissionId)) {
+      seen.add(row.submissionId)
+      merged.push(row)
+    }
+  }
+  return merged
+}
+
+const [routingState, submissionsPagination] = await Promise.all([
+  useConvexQuery(
+    api.boardContact.getBoardContactRouting,
+    () => isBoardMember.value ? {} : 'skip'
+  ),
+  useConvexPaginatedQuery(
+    api.boardContact.listBoardContactSubmissions,
+    () => isBoardMember.value ? {} : 'skip',
+    {
+      initialNumItems: PAGE_SIZE,
+      keepPreviousData: true,
+      transform: deduplicateBySubmissionId
+    }
+  )
+])
 
 const serverRouting = computed(() => routingState.data.value?.data.routing ?? null)
 const loadingRouting = computed(() => {
@@ -132,44 +157,18 @@ async function submitRouting() {
   }
 }
 
-/** Submissions inbox (live-subscribed cursor pages with sealed endCursor ranges) */
-interface PaginatedSubmissionsResponse {
-  data: {
-    continueCursor: null | string
-    isDone: boolean
-    page: SubmissionRow[]
-    pageStatus?: 'SplitRecommended' | 'SplitRequired' | null
-    splitCursor?: null | string
-  }
-  ok: true
-}
-
-const {
-  canLoadMore: canLoadMoreSubmissions,
-  error: submissionsError,
-  initialized: listInitialized,
-  isPending: loadingSubmissions,
-  items: accumulatedSubmissions,
-  loadMore: loadMoreSubmissions,
-  refresh: refreshSubmissionList,
-  retryFailedPages: retryFailedSubmissionPages
-} = await useLiveConvexPagination<PaginatedSubmissionsResponse, SubmissionRow, Id<'boardContactSubmissions'>>({
-  enabled: isBoardMember,
-  extractPage: (raw) => {
-    if (!raw?.ok)
-      return null
-    return {
-      continueCursor: raw.data.continueCursor ?? null,
-      isDone: raw.data.isDone,
-      items: raw.data.page,
-      pageStatus: raw.data.pageStatus,
-      splitCursor: raw.data.splitCursor
-    }
-  },
-  getItemId: row => row.submissionId,
-  pageSize: 25,
-  query: api.boardContact.listBoardContactSubmissions
-})
+/** Submissions inbox backed by `useConvexPaginatedQuery` */
+const accumulatedSubmissions = submissionsPagination.results
+const canLoadMoreSubmissions = submissionsPagination.hasNextPage
+const loadingSubmissions = computed(
+  () => isBoardMember.value && submissionsPagination.isLoading.value
+)
+const listInitialized = computed(
+  () =>
+    submissionsPagination.status.value !== 'idle'
+    && (submissionsPagination.status.value !== 'loading-first-page'
+      || accumulatedSubmissions.value.length > 0)
+)
 
 const viewedSubmission = ref<SubmissionRow | null>(null)
 const messageModalOpen = ref(false)
@@ -179,13 +178,22 @@ const deletingSubmissionId = ref<Id<'boardContactSubmissions'> | null>(null)
 const deleteSubmission = useConvexMutation(api.boardContact.deleteBoardContactSubmission)
 
 const submissionsErrorMessage = computed<null | string>(() => {
-  const err = submissionsError.value
+  const err = submissionsPagination.error.value
   if (!err)
     return null
-  return err instanceof Error && err.message.trim().length > 0
+  return err.message.trim().length > 0
     ? err.message
     : 'Could not load older submissions. Try again.'
 })
+
+function loadMoreSubmissions() {
+  if (submissionsPagination.hasNextPage.value)
+    submissionsPagination.loadMore(PAGE_SIZE)
+}
+
+function refreshSubmissionList() {
+  void submissionsPagination.reset()
+}
 
 function previewMessage(message: string): string {
   const compact = message.replace(/\s+/g, ' ').trim()
@@ -426,7 +434,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
               size="sm"
               type="button"
               variant="subtle"
-              @click="retryFailedSubmissionPages"
+              @click="refreshSubmissionList"
             >
               Try again
             </UButton>
@@ -650,7 +658,7 @@ function formatBoardContactDeliveryError(raw: string | undefined): string {
                 size="sm"
                 type="button"
                 variant="subtle"
-                @click="retryFailedSubmissionPages"
+                @click="refreshSubmissionList"
               >
                 Try again
               </UButton>

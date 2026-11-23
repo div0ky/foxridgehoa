@@ -63,23 +63,23 @@ test('paginateCommunityUpdatesPublic returns older pages by posted time', async 
     paginationOpts: { cursor: null, numItems: 2 }
   })
 
-  expect(firstPage.data.updates.map(update => update.bodyMarkdown)).toEqual([
+  expect(firstPage.page.map(update => update.bodyMarkdown)).toEqual([
     'Update 30',
     'Update 20'
   ])
-  expect(firstPage.data.isDone).toBe(false)
-  expect(firstPage.data).toHaveProperty('pageStatus')
-  expect(firstPage.data).toHaveProperty('splitCursor')
+  expect(firstPage.isDone).toBe(false)
+  expect(firstPage).toHaveProperty('pageStatus')
+  expect(firstPage).toHaveProperty('splitCursor')
 
   const secondPage = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
     paginationOpts: {
-      cursor: firstPage.data.continueCursor,
+      cursor: firstPage.continueCursor,
       numItems: 2
     }
   })
 
-  expect(secondPage.data.updates.map(update => update.bodyMarkdown)).toEqual(['Update 10'])
-  expect(secondPage.data.isDone).toBe(true)
+  expect(secondPage.page.map(update => update.bodyMarkdown)).toEqual(['Update 10'])
+  expect(secondPage.isDone).toBe(true)
 })
 
 test('paginateCommunityUpdatesPublic caps untrusted page sizes', async () => {
@@ -103,8 +103,8 @@ test('paginateCommunityUpdatesPublic caps untrusted page sizes', async () => {
     paginationOpts: { cursor: null, numItems: 10_000 }
   })
 
-  expect(result.data.updates).toHaveLength(50)
-  expect(result.data.isDone).toBe(false)
+  expect(result.page).toHaveLength(50)
+  expect(result.isDone).toBe(false)
 })
 
 test('listCommunityUpdatesPublic rejects non-finite limits', async () => {
@@ -182,21 +182,21 @@ test('paginateCommunityUpdatesPublic respects endCursor ranges across edits and 
   const page1 = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
     paginationOpts: { cursor: null, id: 1, numItems: 2 }
   })
-  expect(page1.data.updates.map(u => u.bodyMarkdown)).toEqual(['Post 30', 'Post 20'])
+  expect(page1.page.map(u => u.bodyMarkdown)).toEqual(['Post 30', 'Post 20'])
 
   await t.run(async (ctx) => {
     await ctx.db.delete(firstId)
   })
 
   const sealedPage1 = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
-    paginationOpts: { cursor: null, endCursor: page1.data.continueCursor, id: 1, numItems: 2 }
+    paginationOpts: { cursor: null, endCursor: page1.continueCursor, id: 1, numItems: 2 }
   })
   const page2 = await t.query(api.communityUpdates.paginateCommunityUpdatesPublic, {
-    paginationOpts: { cursor: page1.data.continueCursor, id: 1, numItems: 2 }
+    paginationOpts: { cursor: page1.continueCursor, id: 1, numItems: 2 }
   })
 
-  expect(sealedPage1.data.updates.map(u => u.bodyMarkdown)).toEqual(['Post 20'])
-  expect(page2.data.updates.map(u => u.bodyMarkdown)).toEqual(['Post 10'])
+  expect(sealedPage1.page.map(u => u.bodyMarkdown)).toEqual(['Post 20'])
+  expect(page2.page.map(u => u.bodyMarkdown)).toEqual(['Post 10'])
 })
 
 test('updateCommunityUpdate throws when unauthenticated', async () => {

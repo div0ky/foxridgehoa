@@ -18,8 +18,7 @@ const [
     isPending,
     loadMore,
     refresh,
-    retryFailedPages,
-    state: communityUpdatesQueryState,
+    status: communityUpdatesStatus,
     updates
   },
   authState,
@@ -57,13 +56,13 @@ const authLoading = computed(() => authState.status.value === 'pending' || profi
 
 const communityUpdatesFailed = computed(
   () =>
-    communityUpdatesQueryState.status.value === 'error'
+    communityUpdatesStatus.value === 'error'
     || communityUpdatesError.value !== null
 )
 const communityUpdatesErrorMessage = computed(() => {
   if (!communityUpdatesFailed.value)
     return null
-  const err = communityUpdatesError.value ?? communityUpdatesQueryState.error.value
+  const err = communityUpdatesError.value
   if (err instanceof Error && err.message.trim().length > 0)
     return err.message
 
@@ -88,7 +87,7 @@ const showBoardPublishingCard = computed(
 useIntersectionObserver(
   loadMoreTarget,
   ([entry]) => {
-    if (entry?.isIntersecting && !communityUpdatesFailed.value)
+    if (entry?.isIntersecting && canLoadMore.value && !communityUpdatesFailed.value)
       loadMore()
   },
   { rootMargin: '420px' }
@@ -207,7 +206,7 @@ function isoDateTime(ms: number): string | undefined {
           variant="secondary"
           size="md"
           icon="lucide:refresh-cw"
-          @click="retryFailedPages"
+          @click="refresh"
         >
           Try again
         </M3Button>
@@ -317,7 +316,7 @@ function isoDateTime(ms: number): string | undefined {
             variant="secondary"
             size="sm"
             icon="lucide:refresh-cw"
-            @click="retryFailedPages"
+            @click="refresh"
           >
             Try again
           </M3Button>
