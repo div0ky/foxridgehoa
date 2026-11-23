@@ -137,17 +137,11 @@ export const paginateCommunityUpdatesPublic = query({
       .withIndex('by_postedAt')
       .order('desc')
       .paginate(paginationOpts)
-    const updates = await Promise.all(result.page.map(doc => mapDocPublic(ctx, doc)))
+    const page = await Promise.all(result.page.map(doc => mapDocPublic(ctx, doc)))
 
     return {
-      data: {
-        continueCursor: result.continueCursor,
-        isDone: result.isDone,
-        pageStatus: result.pageStatus ?? null,
-        splitCursor: result.splitCursor ?? null,
-        updates
-      },
-      ok: true as const
+      ...result,
+      page
     }
   }
 })

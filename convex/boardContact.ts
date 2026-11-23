@@ -286,22 +286,16 @@ export const listBoardContactSubmissions = query({
       .paginate(paginationOpts)
 
     return {
-      data: {
-        continueCursor: result.continueCursor,
-        isDone: result.isDone,
-        page: result.page.map(doc => ({
-          createdAt: doc._creationTime,
-          emailDeliveryStatus: doc.emailDeliveryStatus,
-          emailLastError: doc.emailLastError,
-          message: doc.message,
-          streetAddress: doc.streetAddress,
-          submissionId: doc._id,
-          submitterName: doc.submitterName
-        })),
-        pageStatus: result.pageStatus ?? null,
-        splitCursor: result.splitCursor ?? null
-      },
-      ok: true as const
+      ...result,
+      page: result.page.map(doc => ({
+        createdAt: doc._creationTime,
+        emailDeliveryStatus: doc.emailDeliveryStatus,
+        emailLastError: doc.emailLastError,
+        message: doc.message,
+        streetAddress: doc.streetAddress,
+        submissionId: doc._id,
+        submitterName: doc.submitterName
+      }))
     }
   }
 })
