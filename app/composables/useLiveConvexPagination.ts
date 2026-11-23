@@ -618,10 +618,8 @@ export async function useLiveConvexPagination<
       isCurrentSplit: () => stagedFirstPageSplit.value === staged,
       onCommittedError: (segment: StagedSegmentState<TItem>, err: unknown) => {
         if (segment.cursor === null) {
-          if (firstPageOverride.value?.key === segment.key) {
-            clearFirstPageOverride()
+          if (firstPageOverride.value?.key === segment.key)
             firstPageSplitError.value = normalizeError(err)
-          }
           return
         }
         applyExtraPageError(segment.key, activeId, err)
@@ -704,12 +702,9 @@ export async function useLiveConvexPagination<
 
           const override = firstPageOverride.value
           if (override) {
-            if (queryError != null && !requestPending) {
-              clearFirstPageOverride()
-              return
-            }
-            // Keep the staged left-half override active until useConvexQuery settles on the narrowed range.
-            if (rawData === override.replacedRawData || requestPending)
+            // Keep the staged left-half override active until useConvexQuery succeeds on the narrowed range
+            // (or pagination resets), so a handoff error never restores the stale unsplit parent snapshot.
+            if (queryError != null || rawData === override.replacedRawData || requestPending)
               return
             clearFirstPageOverride()
           }
@@ -907,7 +902,7 @@ export async function useLiveConvexPagination<
     if (firstPageSplitError.value) {
       const splitErr = firstPageSplitError.value
       firstPageSplitError.value = null
-      if (isConvexInvalidCursorError(splitErr)) {
+      if (firstPageOverride.value !== null || isConvexInvalidCursorError(splitErr)) {
         refresh()
         return
       }

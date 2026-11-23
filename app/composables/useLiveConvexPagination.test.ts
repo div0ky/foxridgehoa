@@ -637,6 +637,62 @@ describe('useLiveConvexPagination', () => {
     scope.stop()
   })
 
+  test('keeps staged left half visible if narrowed first-page handoff errors', async () => {
+    const harness = createHarness()
+    harness.firstPageData.value = {
+      data: {
+        continueCursor: 'c4',
+        isDone: false,
+        items: [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }],
+        pageStatus: 'SplitRecommended',
+        splitCursor: 'c2'
+      },
+      ok: true
+    }
+
+    const scope = effectScope()
+    let pagination!: Awaited<ReturnType<typeof useLiveConvexPagination<MockPageResponse, { id: string }>>>
+    await scope.run(async () => {
+      pagination = await useLiveConvexPagination<MockPageResponse, { id: string }>({
+        extractPage: extractMockPage,
+        getItemId: item => item.id,
+        pageSize: 2,
+        query: dummyQuery
+      })
+    })
+
+    const stagedLeft = harness.subscriptions[0]!
+    const stagedRight = harness.subscriptions[1]!
+
+    stagedRight.emit({
+      data: { continueCursor: 'c4', isDone: false, items: [{ id: '2b' }, { id: '3' }, { id: '4' }] },
+      ok: true
+    })
+    stagedLeft.emit({
+      data: { continueCursor: 'c2', isDone: false, items: [{ id: '1' }] },
+      ok: true
+    })
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2b', '3', '4'])
+
+    // Narrowed useConvexQuery errors while Nuxt retains the unsplit [1, 2, 3, 4] data object.
+    harness.firstPagePending.value = false
+    harness.firstPageIsStale.value = false
+    harness.firstPageError.value = new Error('Narrowed page failed')
+    await nextTick()
+
+    // Must keep [1, 2b, 3, 4] intact (never revert to stale [1, 2, 3, 4, 2b]) and surface the error.
+    expect(pagination.items.value.map(i => i.id)).toEqual(['1', '2b', '3', '4'])
+    expect(pagination.error.value?.message).toBe('Narrowed page failed')
+    expect(pagination.canLoadMore.value).toBe(false)
+
+    // Retrying resets cleanly and tears down the temporary override subscription.
+    pagination.retryFailedPages()
+    expect(stagedLeft.active).toBe(false)
+    expect(stagedRight.active).toBe(false)
+
+    scope.stop()
+  })
+
   test('preserves loaded rows on older-page error, retries in place, and resets on InvalidCursor', async () => {
     const harness = createHarness()
     harness.firstPageData.value = {
