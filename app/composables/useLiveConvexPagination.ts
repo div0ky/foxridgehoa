@@ -24,7 +24,7 @@ interface ExtraPageState<TItem> {
   unsubscribe: (() => void) | null
 }
 
-interface StagedHalfState<TItem> {
+interface StagedSegmentState<TItem> {
   cursor: null | string
   endCursor: null | string
   key: number
@@ -32,19 +32,10 @@ interface StagedHalfState<TItem> {
   unsubscribe: (() => void) | null
 }
 
-interface OngoingExtraSplit<TItem> {
+interface OngoingSplit<TItem> {
   activeId: number
   committed: boolean
-  left: StagedHalfState<TItem>
-  right: StagedHalfState<TItem>
-}
-
-interface StagedFirstPageSplit<TItem> {
-  activeId: number
-  committed: boolean
-  left: StagedHalfState<TItem>
-  right: StagedHalfState<TItem>
-  splitCursor: string
+  segments: StagedSegmentState<TItem>[]
 }
 
 interface FirstPageOverrideState<TItem> {
@@ -80,6 +71,18 @@ function shouldSplitPage(payload: {
   )
 }
 
+function canSplitRange(
+  cursor: null | string,
+  endCursor: null | string,
+  payload: LivePaginationPagePayload<unknown>
+): payload is LivePaginationPagePayload<unknown> & { splitCursor: string } {
+  return (
+    shouldSplitPage(payload)
+    && payload.splitCursor !== cursor
+    && payload.splitCursor !== endCursor
+  )
+}
+
 function normalizeError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err))
 }
@@ -87,9 +90,9 @@ function normalizeError(err: unknown): Error {
 /**
  * Shared reactive cursor pagination for `{ ok, data }` Convex queries.
  * Keeps loaded ranges subscribed with sealed `endCursor` boundaries,
- * stages both halves of Convex `splitCursor` splits atomically without
- * dropping rows or fetching past the loaded range, preserves the last
- * complete snapshot during `SplitRequired`, resets cleanly on
+ * stages Convex `splitCursor` splits (including nested `SplitRequired`)
+ * atomically without dropping rows or fetching past the loaded range,
+ * preserves complete snapshots during `SplitRequired`, resets cleanly on
  * `InvalidCursor`, and binds all watchers and cleanup to the caller's
  * effect scope before `await`.
  */
@@ -114,12 +117,17 @@ export async function useLiveConvexPagination<
   const paginationId = ref(0)
   const firstPageEndCursor = ref<null | string>(null)
   const extraPages = shallowRef<ExtraPageState<TItem>[]>([])
-  const ongoingExtraSplits = shallowRef<Map<number, OngoingExtraSplit<TItem>>>(new Map())
-  const stagedFirstPageSplit = shallowRef<StagedFirstPageSplit<TItem> | null>(null)
+  const ongoingExtraSplits = shallowRef<Map<number, OngoingSplit<TItem>>>(new Map())
+  const stagedFirstPageSplit = shallowRef<OngoingSplit<TItem> | null>(null)
   const firstPageOverride = shallowRef<FirstPageOverrideState<TItem> | null>(null)
   const lastCompleteFirstPage = shallowRef<LivePaginationPagePayload<TItem> | null>(null)
   const firstPageSplitError = ref<Error | null>(null)
   const isEnabled = computed(() => (options.enabled === undefined ? true : Boolean(toValue(options.enabled))))
+
+  function unsubscribeSplitSegments(split: OngoingSplit<TItem>) {
+    for (const segment of split.segments)
+      segment.unsubscribe?.()
+  }
 
   function clearFirstPageOverride() {
     firstPageOverride.value?.unsubscribe?.()
@@ -130,8 +138,7 @@ export async function useLiveConvexPagination<
     const staged = stagedFirstPageSplit.value
     if (!staged)
       return
-    staged.left.unsubscribe?.()
-    staged.right.unsubscribe?.()
+    unsubscribeSplitSegments(staged)
     stagedFirstPageSplit.value = null
   }
 
@@ -140,10 +147,8 @@ export async function useLiveConvexPagination<
     clearFirstPageOverride()
     firstPageSplitError.value = null
 
-    for (const split of ongoingExtraSplits.value.values()) {
-      split.left.unsubscribe?.()
-      split.right.unsubscribe?.()
-    }
+    for (const split of ongoingExtraSplits.value.values())
+      unsubscribeSplitSegments(split)
     if (ongoingExtraSplits.value.size > 0)
       ongoingExtraSplits.value = new Map()
   }
@@ -300,13 +305,141 @@ export async function useLiveConvexPagination<
     const existing = ongoingExtraSplits.value.get(parentKey)
     if (!existing)
       return
-    existing.left.unsubscribe?.()
-    existing.right.unsubscribe?.()
+    unsubscribeSplitSegments(existing)
     removeOngoingExtraSplit(parentKey)
   }
 
-  function tryCommitExtraSplit(parentKey: number, splitState: OngoingExtraSplit<TItem>) {
-    if (splitState.committed || !splitState.left.payload || !splitState.right.payload)
+  function toExtraPageState(segment: StagedSegmentState<TItem>): ExtraPageState<TItem> {
+    const payload = segment.payload!
+    return {
+      continueCursor: payload.continueCursor ?? null,
+      cursor: segment.cursor!,
+      endCursor: segment.endCursor,
+      error: null,
+      isDone: payload.isDone,
+      items: payload.items,
+      key: segment.key,
+      pending: false,
+      unsubscribe: segment.unsubscribe
+    }
+  }
+
+  /**
+   * Subscribes one segment of an in-flight split. If the segment itself returns an incomplete
+   * `SplitRequired` payload, it is subdivided in place before the parent split commits so no
+   * visible rows are dropped while nested splits load.
+   */
+  function subscribeStagedSegment(args: {
+    convex: ConvexClient
+    isCurrentSplit: () => boolean
+    onCommittedError: (segment: StagedSegmentState<TItem>, err: unknown) => void
+    onCommittedResult: (segment: StagedSegmentState<TItem>, rawResult: unknown) => void
+    onStageError: (err: unknown) => void
+    onTryCommit: () => void
+    segment: StagedSegmentState<TItem>
+    split: OngoingSplit<TItem>
+  }) {
+    const {
+      convex,
+      isCurrentSplit,
+      onCommittedError,
+      onCommittedResult,
+      onStageError,
+      onTryCommit,
+      segment,
+      split
+    } = args
+
+    const unsub = convex.onUpdate(
+      options.query,
+      {
+        paginationOpts: {
+          cursor: segment.cursor,
+          ...(segment.endCursor !== null ? { endCursor: segment.endCursor } : {}),
+          id: split.activeId,
+          numItems: options.pageSize
+        }
+      },
+      (rawResult) => {
+        if (isDisposed || paginationId.value !== split.activeId)
+          return
+        if (split.committed) {
+          onCommittedResult(segment, rawResult)
+          return
+        }
+        if (!isCurrentSplit())
+          return
+
+        const segIndex = split.segments.indexOf(segment)
+        if (segIndex === -1)
+          return
+
+        const segPayload = options.extractPage(rawResult as TRawResult)
+        if (!segPayload)
+          return
+
+        const rightEnd = segment.endCursor ?? segPayload.continueCursor
+        if (segPayload.pageStatus === 'SplitRequired' && canSplitRange(segment.cursor, rightEnd, segPayload)) {
+          segment.unsubscribe?.()
+          const subLeft: StagedSegmentState<TItem> = {
+            cursor: segment.cursor,
+            endCursor: segPayload.splitCursor,
+            key: nextPageKey++,
+            payload: null,
+            unsubscribe: null
+          }
+          const subRight: StagedSegmentState<TItem> = {
+            cursor: segPayload.splitCursor,
+            endCursor: rightEnd,
+            key: nextPageKey++,
+            payload: null,
+            unsubscribe: null
+          }
+          split.segments.splice(segIndex, 1, subLeft, subRight)
+
+          subscribeStagedSegment({ ...args, segment: subLeft })
+          if (isCurrentSplit() || split.committed)
+            subscribeStagedSegment({ ...args, segment: subRight })
+          return
+        }
+
+        segment.payload = segPayload
+        onTryCommit()
+      },
+      (err) => {
+        if (isDisposed || paginationId.value !== split.activeId)
+          return
+        if (split.committed) {
+          onCommittedError(segment, err)
+          return
+        }
+        if (!isCurrentSplit())
+          return
+        onStageError(err)
+      }
+    )
+
+    segment.unsubscribe = unsub
+    if (split.committed) {
+      if (segment.cursor === null) {
+        if (firstPageOverride.value?.key === segment.key && !isDisposed) {
+          firstPageOverride.value = {
+            ...firstPageOverride.value,
+            unsubscribe: unsub
+          }
+        } else {
+          unsub()
+        }
+      } else {
+        attachUnsubscribeToExtraPage(segment.key, unsub)
+      }
+    } else if (!isCurrentSplit() || !split.segments.includes(segment) || isDisposed) {
+      unsub()
+    }
+  }
+
+  function tryCommitExtraSplit(parentKey: number, splitState: OngoingSplit<TItem>) {
+    if (splitState.committed || splitState.segments.some(seg => seg.payload === null))
       return
 
     const parentIndex = extraPages.value.findIndex(entry => entry.key === parentKey)
@@ -321,40 +454,15 @@ export async function useLiveConvexPagination<
     const parent = extraPages.value[parentIndex]!
     parent.unsubscribe?.()
 
-    const leftPayload = splitState.left.payload
-    const rightPayload = splitState.right.payload
-
-    const leftPage: ExtraPageState<TItem> = {
-      continueCursor: leftPayload.continueCursor ?? null,
-      cursor: splitState.left.cursor!,
-      endCursor: splitState.left.endCursor,
-      error: null,
-      isDone: leftPayload.isDone,
-      items: leftPayload.items,
-      key: splitState.left.key,
-      pending: false,
-      unsubscribe: splitState.left.unsubscribe
-    }
-    const rightPage: ExtraPageState<TItem> = {
-      continueCursor: rightPayload.continueCursor ?? null,
-      cursor: splitState.right.cursor!,
-      endCursor: splitState.right.endCursor,
-      error: null,
-      isDone: rightPayload.isDone,
-      items: rightPayload.items,
-      key: splitState.right.key,
-      pending: false,
-      unsubscribe: splitState.right.unsubscribe
-    }
-
+    const committedPages = splitState.segments.map(toExtraPageState)
     const nextPages = [...extraPages.value]
-    nextPages.splice(parentIndex, 1, leftPage, rightPage)
+    nextPages.splice(parentIndex, 1, ...committedPages)
     extraPages.value = nextPages
 
-    if (shouldSplitPage(leftPayload))
-      startExtraPageSplit(leftPage.key, leftPayload)
-    if (shouldSplitPage(rightPayload))
-      startExtraPageSplit(rightPage.key, rightPayload)
+    for (const seg of splitState.segments) {
+      if (seg.payload && shouldSplitPage(seg.payload))
+        startExtraPageSplit(seg.key, seg.payload)
+    }
   }
 
   function startExtraPageSplit(
@@ -373,129 +481,96 @@ export async function useLiveConvexPagination<
       ?? (payload.pageStatus === 'SplitRequired'
         ? (parent.continueCursor ?? payload.continueCursor)
         : payload.continueCursor)
-    if (payload.splitCursor === parent.cursor || payload.splitCursor === rightEndCursor)
+    if (!canSplitRange(parent.cursor, rightEndCursor, payload))
       return
 
     const activeId = paginationId.value
-    const splitState: OngoingExtraSplit<TItem> = {
+    const leftSegment: StagedSegmentState<TItem> = {
+      cursor: parent.cursor,
+      endCursor: payload.splitCursor,
+      key: nextPageKey++,
+      payload: null,
+      unsubscribe: null
+    }
+    const rightSegment: StagedSegmentState<TItem> = {
+      cursor: payload.splitCursor,
+      endCursor: rightEndCursor,
+      key: nextPageKey++,
+      payload: null,
+      unsubscribe: null
+    }
+    const splitState: OngoingSplit<TItem> = {
       activeId,
       committed: false,
-      left: {
-        cursor: parent.cursor,
-        endCursor: payload.splitCursor,
-        key: nextPageKey++,
-        payload: null,
-        unsubscribe: null
-      },
-      right: {
-        cursor: payload.splitCursor,
-        endCursor: rightEndCursor,
-        key: nextPageKey++,
-        payload: null,
-        unsubscribe: null
-      }
+      segments: [leftSegment, rightSegment]
     }
 
     const nextSplits = new Map(ongoingExtraSplits.value)
     nextSplits.set(parentKey, splitState)
     ongoingExtraSplits.value = nextSplits
 
-    function subscribeHalf(half: StagedHalfState<TItem>) {
-      const unsub = convex!.onUpdate(
-        options.query,
-        {
-          paginationOpts: {
-            cursor: half.cursor,
-            ...(half.endCursor !== null ? { endCursor: half.endCursor } : {}),
-            id: activeId,
-            numItems: options.pageSize
-          }
-        },
-        (rawResult) => {
-          if (isDisposed || paginationId.value !== activeId)
-            return
-          if (splitState.committed) {
-            applyExtraPageUpdate(half.key, activeId, rawResult)
-            return
-          }
-          const halfPayload = options.extractPage(rawResult as TRawResult)
-          if (!halfPayload)
-            return
-          half.payload = halfPayload
-          tryCommitExtraSplit(parentKey, splitState)
-        },
-        (err) => {
-          if (isDisposed || paginationId.value !== activeId)
-            return
-          if (splitState.committed) {
-            applyExtraPageError(half.key, activeId, err)
-            return
-          }
-          cancelOngoingExtraSplit(parentKey)
-          applyExtraPageError(parentKey, activeId, err)
-        }
-      )
-
-      half.unsubscribe = unsub
-      if (splitState.committed) {
-        attachUnsubscribeToExtraPage(half.key, unsub)
-      } else if (ongoingExtraSplits.value.get(parentKey) !== splitState || isDisposed) {
-        unsub()
-      }
+    const commonArgs = {
+      convex,
+      isCurrentSplit: () => ongoingExtraSplits.value.get(parentKey) === splitState,
+      onCommittedError: (segment: StagedSegmentState<TItem>, err: unknown) => {
+        applyExtraPageError(segment.key, activeId, err)
+      },
+      onCommittedResult: (segment: StagedSegmentState<TItem>, rawResult: unknown) => {
+        applyExtraPageUpdate(segment.key, activeId, rawResult)
+      },
+      onStageError: (err: unknown) => {
+        cancelOngoingExtraSplit(parentKey)
+        applyExtraPageError(parentKey, activeId, err)
+      },
+      onTryCommit: () => {
+        tryCommitExtraSplit(parentKey, splitState)
+      },
+      split: splitState
     }
 
-    subscribeHalf(splitState.left)
-    if (ongoingExtraSplits.value.get(parentKey) === splitState || splitState.committed)
-      subscribeHalf(splitState.right)
+    subscribeStagedSegment({ ...commonArgs, segment: leftSegment })
+    if (commonArgs.isCurrentSplit() || splitState.committed)
+      subscribeStagedSegment({ ...commonArgs, segment: rightSegment })
   }
 
-  function tryCommitFirstPageSplit(staged: StagedFirstPageSplit<TItem>) {
-    if (staged.committed || !staged.left.payload || !staged.right.payload)
+  function tryCommitFirstPageSplit(staged: OngoingSplit<TItem>) {
+    if (staged.committed || staged.segments.some(seg => seg.payload === null))
       return
 
     if (isDisposed || paginationId.value !== staged.activeId || stagedFirstPageSplit.value !== staged) {
-      staged.left.unsubscribe?.()
-      staged.right.unsubscribe?.()
+      unsubscribeSplitSegments(staged)
       if (stagedFirstPageSplit.value === staged)
         stagedFirstPageSplit.value = null
       return
     }
 
+    const [firstSegment, ...tailSegments] = staged.segments
+    if (!firstSegment || !firstSegment.payload || firstSegment.endCursor === null)
+      return
+
     staged.committed = true
     stagedFirstPageSplit.value = null
 
-    const leftPayload = staged.left.payload
-    const rightPayload = staged.right.payload
     const replacedRawData = state.data.value
-
     clearFirstPageOverride()
     firstPageOverride.value = {
       activeId: staged.activeId,
-      key: staged.left.key,
-      payload: leftPayload,
+      key: firstSegment.key,
+      payload: firstSegment.payload,
       replacedRawData,
-      unsubscribe: staged.left.unsubscribe
+      unsubscribe: firstSegment.unsubscribe
     }
-    if (leftPayload.pageStatus !== 'SplitRequired')
-      lastCompleteFirstPage.value = leftPayload
+    if (firstSegment.payload.pageStatus !== 'SplitRequired')
+      lastCompleteFirstPage.value = firstSegment.payload
 
-    const secondHalf: ExtraPageState<TItem> = {
-      continueCursor: rightPayload.continueCursor ?? null,
-      cursor: staged.splitCursor,
-      endCursor: staged.right.endCursor,
-      error: null,
-      isDone: rightPayload.isDone,
-      items: rightPayload.items,
-      key: staged.right.key,
-      pending: false,
-      unsubscribe: staged.right.unsubscribe
+    const committedTailPages = tailSegments.map(toExtraPageState)
+    extraPages.value = [...committedTailPages, ...extraPages.value]
+    firstPageEndCursor.value = firstSegment.endCursor
+
+    for (const seg of tailSegments) {
+      if (seg.payload && shouldSplitPage(seg.payload))
+        startExtraPageSplit(seg.key, seg.payload)
     }
-
-    extraPages.value = [secondHalf, ...extraPages.value]
-    firstPageEndCursor.value = staged.splitCursor
-
-    if (shouldSplitPage(rightPayload))
-      startExtraPageSplit(secondHalf.key, rightPayload)
   }
 
   function startFirstPageSplit(
@@ -513,129 +588,70 @@ export async function useLiveConvexPagination<
       return
 
     const activeId = paginationId.value
-    const staged: StagedFirstPageSplit<TItem> = {
+    const leftSegment: StagedSegmentState<TItem> = {
+      cursor: null,
+      endCursor: payload.splitCursor,
+      key: nextPageKey++,
+      payload: null,
+      unsubscribe: null
+    }
+    const rightSegment: StagedSegmentState<TItem> = {
+      cursor: payload.splitCursor,
+      endCursor: rightEndCursor,
+      key: nextPageKey++,
+      payload: null,
+      unsubscribe: null
+    }
+    const staged: OngoingSplit<TItem> = {
       activeId,
       committed: false,
-      left: {
-        cursor: null,
-        endCursor: payload.splitCursor,
-        key: nextPageKey++,
-        payload: null,
-        unsubscribe: null
-      },
-      right: {
-        cursor: payload.splitCursor,
-        endCursor: rightEndCursor,
-        key: nextPageKey++,
-        payload: null,
-        unsubscribe: null
-      },
-      splitCursor: payload.splitCursor
+      segments: [leftSegment, rightSegment]
     }
     stagedFirstPageSplit.value = staged
     firstPageSplitError.value = null
 
-    const leftUnsub = convex.onUpdate(
-      options.query,
-      {
-        paginationOpts: {
-          cursor: null,
-          endCursor: staged.splitCursor,
-          id: activeId,
-          numItems: options.pageSize
-        }
-      },
-      (rawResult) => {
-        if (isDisposed || paginationId.value !== activeId)
-          return
-        const leftPayload = options.extractPage(rawResult as TRawResult)
-        if (!leftPayload)
-          return
-        if (staged.committed) {
-          if (firstPageOverride.value?.key === staged.left.key) {
-            firstPageOverride.value = {
-              ...firstPageOverride.value,
-              payload: leftPayload
-            }
-            if (leftPayload.pageStatus !== 'SplitRequired')
-              lastCompleteFirstPage.value = leftPayload
-          }
-          return
-        }
-        staged.left.payload = leftPayload
-        tryCommitFirstPageSplit(staged)
-      },
-      (err) => {
-        if (isDisposed || paginationId.value !== activeId)
-          return
-        if (staged.committed) {
-          if (firstPageOverride.value?.key === staged.left.key) {
+    const commonArgs = {
+      convex,
+      isCurrentSplit: () => stagedFirstPageSplit.value === staged,
+      onCommittedError: (segment: StagedSegmentState<TItem>, err: unknown) => {
+        if (segment.cursor === null) {
+          if (firstPageOverride.value?.key === segment.key) {
             clearFirstPageOverride()
             firstPageSplitError.value = normalizeError(err)
           }
           return
         }
+        applyExtraPageError(segment.key, activeId, err)
+      },
+      onCommittedResult: (segment: StagedSegmentState<TItem>, rawResult: unknown) => {
+        if (segment.cursor === null) {
+          if (firstPageOverride.value?.key === segment.key) {
+            const nextLeft = options.extractPage(rawResult as TRawResult)
+            if (nextLeft && nextLeft.pageStatus !== 'SplitRequired') {
+              firstPageOverride.value = {
+                ...firstPageOverride.value,
+                payload: nextLeft
+              }
+              lastCompleteFirstPage.value = nextLeft
+            }
+          }
+          return
+        }
+        applyExtraPageUpdate(segment.key, activeId, rawResult)
+      },
+      onStageError: (err: unknown) => {
         clearStagedFirstPageSplit()
         firstPageSplitError.value = normalizeError(err)
-      }
-    )
-
-    staged.left.unsubscribe = leftUnsub
-    if (staged.committed) {
-      if (firstPageOverride.value?.key === staged.left.key && !isDisposed) {
-        firstPageOverride.value = {
-          ...firstPageOverride.value,
-          unsubscribe: leftUnsub
-        }
-      } else {
-        leftUnsub()
-      }
-    } else if (stagedFirstPageSplit.value !== staged || isDisposed) {
-      leftUnsub()
-      return
-    }
-
-    const rightUnsub = convex.onUpdate(
-      options.query,
-      {
-        paginationOpts: {
-          cursor: staged.splitCursor,
-          ...(staged.right.endCursor !== null ? { endCursor: staged.right.endCursor } : {}),
-          id: activeId,
-          numItems: options.pageSize
-        }
       },
-      (rawResult) => {
-        if (isDisposed || paginationId.value !== activeId)
-          return
-        if (staged.committed) {
-          applyExtraPageUpdate(staged.right.key, activeId, rawResult)
-          return
-        }
-        const rightPayload = options.extractPage(rawResult as TRawResult)
-        if (!rightPayload)
-          return
-        staged.right.payload = rightPayload
+      onTryCommit: () => {
         tryCommitFirstPageSplit(staged)
       },
-      (err) => {
-        if (isDisposed || paginationId.value !== activeId)
-          return
-        if (staged.committed) {
-          applyExtraPageError(staged.right.key, activeId, err)
-          return
-        }
-        clearStagedFirstPageSplit()
-        firstPageSplitError.value = normalizeError(err)
-      }
-    )
-
-    staged.right.unsubscribe = rightUnsub
-    if (staged.committed) {
-      attachUnsubscribeToExtraPage(staged.right.key, rightUnsub)
-    } else if (stagedFirstPageSplit.value !== staged || isDisposed) {
-      rightUnsub()
+      split: staged
     }
+
+    subscribeStagedSegment({ ...commonArgs, segment: leftSegment })
+    if (commonArgs.isCurrentSplit() || staged.committed)
+      subscribeStagedSegment({ ...commonArgs, segment: rightSegment })
   }
 
   const rawFirstPagePayload = computed(() =>
@@ -674,8 +690,12 @@ export async function useLiveConvexPagination<
             return
 
           const override = firstPageOverride.value
-          if (override && rawData !== override.replacedRawData && status !== 'pending')
+          if (override) {
+            // Keep the staged left-half override active until useConvexQuery settles on the narrowed range.
+            if (rawData === override.replacedRawData || status === 'pending')
+              return
             clearFirstPageOverride()
+          }
 
           const payload = rawFirstPagePayload.value
           if (!payload)
@@ -760,21 +780,25 @@ export async function useLiveConvexPagination<
     () => state.error.value ?? firstPageSplitError.value ?? extraPageError.value
   )
 
-  const hasOngoingSplit = computed(
-    () => stagedFirstPageSplit.value !== null || ongoingExtraSplits.value.size > 0
+  const isTransitioningSplit = computed(
+    () =>
+      stagedFirstPageSplit.value !== null
+      || firstPageOverride.value !== null
+      || ongoingExtraSplits.value.size > 0
   )
 
   const isPending = computed(() => {
     if (!isEnabled.value)
       return false
-    return state.status.value === 'pending' || extraPages.value.some(page => page.pending)
+    const firstPagePending = state.status.value === 'pending' && firstPageOverride.value === null
+    return firstPagePending || extraPages.value.some(page => page.pending)
   })
 
   const canLoadMore = computed(
     () =>
       isEnabled.value
       && !isPending.value
-      && !hasOngoingSplit.value
+      && !isTransitioningSplit.value
       && !isDone.value
       && continueCursor.value !== null
       && error.value === null
